@@ -10,7 +10,7 @@ datasource db {
   provider = "postgresql"
 }
 
-// Values mirror the string unions in frontend/lib/types.ts exactly, so the
+// Values mirror the string unions in frontend/types/ exactly, so the
 // column values and the API contract stay in sync.
 enum TaskStatus {
   todo

@@ -1,4 +1,4 @@
-import type { Developer } from "@/lib/types";
+import type { Developer } from "@/types";
 import { cn } from "@/lib/utils";
 
 import { avatarStyle, initials } from "./task-ui";

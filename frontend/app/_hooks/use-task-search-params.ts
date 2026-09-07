@@ -3,7 +3,7 @@
 import { parseAsString, parseAsStringLiteral, useQueryStates } from "nuqs";
 
 import { STATUSES } from "@/app/_components/task-ui";
-import type { TaskStatus } from "@/lib/types";
+import type { TaskStatus } from "@/types";
 
 /** What the list can be narrowed to. Lives in the `?filter=` query param. */
 export type Filter = "all" | "unassigned" | TaskStatus;

@@ -2,7 +2,7 @@
 
 import { ChevronRightIcon, CornerDownRightIcon } from "lucide-react";
 
-import type { Task } from "@/lib/types";
+import type { Task } from "@/types";
 import { cn } from "@/lib/utils";
 
 type Props = {

@@ -5,8 +5,12 @@ import { ChevronDownIcon, PlusIcon, XIcon } from "lucide-react";
 import { useFieldArray, useFormContext, useWatch } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
-import { MAX_SUBTASK_DEPTH } from "@/lib/constants";
-import type { Developer, Skill } from "@/lib/types";
+import {
+  MAX_SUBTASK_DEPTH,
+  MAX_SUBTASKS_PER_TASK,
+  MAX_TASKS_PER_CREATE,
+} from "@/lib/constants";
+import type { Developer, Skill } from "@/types";
 import { cn } from "@/lib/utils";
 
 import {
@@ -16,6 +20,11 @@ import {
   type FormPath,
   type TaskFormValues,
 } from "./task-form-fields";
+
+/** Every task in `values` and below, at any depth. */
+export function countTree(values: TaskFormValues[]): number {
+  return values.reduce((n, v) => n + 1 + countTree(v.subtasks), 0);
+}
 
 type ListProps = {
   /** Path of the task whose subtasks this list edits (`""` for the root). */
@@ -50,8 +59,14 @@ export function SubtaskList({
     control,
     name: `${path}subtasks` as "subtasks",
   });
-  // A subtask added here would sit one level below this list's owner.
-  const canAdd = depth + 1 <= maxDepth;
+  // The whole tree, root included — the server caps its total size.
+  const total = 1 + countTree(useWatch({ control, name: "subtasks" }) ?? []);
+  // A subtask added here would sit one level below this list's owner, be one
+  // more sibling in this list, and one more task in the tree; each has a cap.
+  const tooDeep = depth + 1 > maxDepth;
+  const tooWide = fields.length >= MAX_SUBTASKS_PER_TASK;
+  const tooMany = total >= MAX_TASKS_PER_CREATE;
+  const canAdd = !tooDeep && !tooWide && !tooMany;
 
   return (
     <div className={cn("flex flex-col gap-3", depth > 0 && "pt-1")}>
@@ -80,7 +95,11 @@ export function SubtaskList({
         </Button>
       ) : (
         <p className="text-xs text-muted-foreground">
-          Subtasks can be nested up to {maxDepth} levels deep.
+          {tooDeep
+            ? `Subtasks can be nested up to ${maxDepth} levels deep.`
+            : tooWide
+              ? `A task can have up to ${MAX_SUBTASKS_PER_TASK} direct subtasks.`
+              : `A task can be created with up to ${MAX_TASKS_PER_CREATE - 1} subtasks in total.`}
         </p>
       )}
     </div>

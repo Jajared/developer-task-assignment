@@ -27,9 +27,9 @@ task-assignment-app/
 │               └── tasks.test.ts
 ├── frontend/                 # Next.js 16 App Router + Tailwind 4, port 3000
 │   ├── app/
-│   └── lib/
-│       ├── api.ts            # typed client for the backend
-│       └── types.ts          # the API contract as the frontend sees it
+│   ├── lib/
+│   │   └── api.ts            # typed client for the backend
+│   └── types/                # the API contract as the frontend sees it, per domain
 ├── docker-compose.yml        # Postgres only; the apps run on the host
 └── package.json              # Bun workspaces + root scripts
 ```
@@ -109,9 +109,10 @@ There is no shared package. The schema's enums are the source of truth:
   client, so the Zod request schemas in `tasks.validator.ts` reject anything
   the database column would. `tasks.types.ts` holds the row type and the API
   shape (`Date` columns serialized to ISO strings).
-- The **frontend** declares the same contract by hand in `lib/types.ts`.
-  Nothing enforces that the two agree, so when you change the schema, update
-  `frontend/lib/types.ts` to match.
+- The **frontend** declares the same contract by hand in `types/`, one file
+  per domain (`task.ts`, `developer.ts`, `skill.ts`, plus `api.ts` for shared
+  shapes). Nothing enforces that the two agree, so when you change the schema,
+  update the matching file in `frontend/types/`.
 
 ## API
 

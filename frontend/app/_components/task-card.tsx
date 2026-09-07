@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import { TaskStatus, type Developer, type Task } from "@/lib/types";
+import { TaskStatus, type Developer, type Task } from "@/types";
 import { cn } from "@/lib/utils";
 
 import { DeveloperAvatar } from "./developer-avatar";

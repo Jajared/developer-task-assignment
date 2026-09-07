@@ -1,6 +1,6 @@
 "use client";
 
-import type { Skill } from "@/lib/types";
+import type { Skill } from "@/types";
 import { cn } from "@/lib/utils";
 
 import { skillStyle } from "./task-ui";

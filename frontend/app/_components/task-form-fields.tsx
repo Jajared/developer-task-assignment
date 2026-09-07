@@ -10,7 +10,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import type { Developer, Skill } from "@/lib/types";
+import type { Developer, Skill } from "@/types";
 
 import { SkillPicker } from "./skill-picker";
 import { AssigneeSelect } from "./task-selects";

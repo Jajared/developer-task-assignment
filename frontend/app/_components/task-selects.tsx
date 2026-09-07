@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Developer, Skill, TaskStatus } from "@/lib/types";
+import type { Developer, Skill, TaskStatus } from "@/types";
 import { cn } from "@/lib/utils";
 
 import {

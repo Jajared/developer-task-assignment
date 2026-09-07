@@ -22,28 +22,41 @@ function taskNotFound(): HttpError {
 }
 
 /**
- * The assignment rule: a task may only be held by a developer who has every
- * skill the task requires. Nothing in the database enforces this — the join
- * tables are independent — so it's checked here, against the state the task
- * will have *after* the write, not the state it has now.
- *
- * Throws if the pairing isn't allowed: 409 when the developer is real but
- * under-skilled (the request was fine, the data refused it), 422 when the body
- * names a row that doesn't exist.
+ * The rows a task body points at must exist before anything else is judged:
+ * connecting a skill that doesn't exist would fail deep inside Prisma with an
+ * opaque error, and an unknown assignee would fail the same way. Both are 422
+ * — the body names a row that isn't there.
  */
-async function assertAssignable(
-  assigneeId: string | null,
-  requiredSkillIds: string[],
-): Promise<void> {
+async function assertReferencesExist(assigneeId: string | null, requiredSkillIds: string[]): Promise<void> {
   if (requiredSkillIds.length > 0) {
-    // Connecting a skill that doesn't exist would fail deep inside Prisma with
-    // an opaque error, so the ids are confirmed up front.
     const found = await prisma.skill.count({ where: { id: { in: requiredSkillIds } } });
     if (found !== new Set(requiredSkillIds).size) {
       throw new UnprocessableEntity("One or more required skills do not exist");
     }
   }
 
+  if (assigneeId) {
+    const developer = await prisma.developer.count({ where: { id: assigneeId } });
+    if (developer === 0) throw new UnprocessableEntity("Assignee is not a known developer");
+  }
+}
+
+/**
+ * The assignment rule: a task may only be held by a developer who has every
+ * skill the task requires. Nothing in the database enforces this — the join
+ * tables are independent — so it's checked here, against the state the task
+ * will have *after* the write, not the state it has now.
+ *
+ * Throws 409 when the developer is real but under-skilled (the request was
+ * fine, the data refused it), 422 when the body names a row that doesn't
+ * exist. On the create path the existence half has already run
+ * (`assertReferencesExist`) before skills were inferred; the 422 here is only
+ * reachable from the update path.
+ */
+async function assertAssignable(
+  assigneeId: string | null,
+  requiredSkillIds: string[],
+): Promise<void> {
   // An unassigned task can require anything — the rule only binds a developer.
   if (!assigneeId) return;
 
@@ -116,15 +129,27 @@ function assertWithinDepth(depth: number): void {
 }
 
 /**
- * Runs every rule over a create payload and its nested subtasks, before any
- * row is written. Depth-first, in payload order, so the first offending task
- * is the one reported. `depth` is 0 for the root.
+ * The checks that need no inferred skills, run over a create payload and its
+ * nested subtasks *before* any LLM call: depth, the completion rule, and that
+ * every skill and developer the body names exists. A body that is going to be
+ * refused for one of these never costs an inference. Depth-first, in payload
+ * order, so the first offending task is the one reported. `depth` is 0 for
+ * the root.
  */
-async function assertTreeValid(task: TCreateTask, depth = 0): Promise<void> {
+async function assertTreeWellFormed(task: TCreateTask, depth = 0): Promise<void> {
   assertWithinDepth(depth);
-  await assertAssignable(task.assigneeId ?? null, task.requiredSkillIds);
   assertCompletable(task.status, task.subtasks);
-  for (const subtask of task.subtasks) await assertTreeValid(subtask, depth + 1);
+  await assertReferencesExist(task.assigneeId ?? null, task.requiredSkillIds);
+  for (const subtask of task.subtasks) await assertTreeWellFormed(subtask, depth + 1);
+}
+
+/**
+ * The assignment rule over the whole tree, run *after* inference so it judges
+ * the skills each task will actually require — inferred or explicit.
+ */
+async function assertTreeAssignable(task: TCreateTask): Promise<void> {
+  await assertAssignable(task.assigneeId ?? null, task.requiredSkillIds);
+  for (const subtask of task.subtasks) await assertTreeAssignable(subtask);
 }
 
 /** True if this task or any subtask below it was sent without required skills. */
@@ -200,19 +225,25 @@ export async function findTaskById(id: string) {
 
 /**
  * Create a task and, in the same transaction, every subtask nested in the
- * payload. Any node sent without required skills has them inferred first;
- * then both rules are checked for the whole tree, so a bad leaf means nothing
- * is written. The rules see the *inferred* skills, so an assignee who lacks
- * them is refused (409) just as if the client had named them. Subtasks are
- * only ever created this way — there is no route to attach one to an existing
- * task.
+ * payload, in three steps:
+ *
+ * 1. The cheap checks — depth, the completion rule, and that every named
+ *    skill and developer exists — run first, so a body that is going to be
+ *    refused never triggers an LLM call.
+ * 2. Any node sent without required skills has them inferred.
+ * 3. The assignment rule runs over the *inferred* skills, so an assignee who
+ *    lacks them is refused (409) just as if the client had named them.
+ *
+ * A bad leaf at any step means nothing is written. Subtasks are only ever
+ * created this way — there is no route to attach one to an existing task.
  *
  * The response is the root row alone; subtasks are ordinary rows in the list,
  * each carrying its `parentId`.
  */
 export async function createTask(input: TCreateTask) {
+  await assertTreeWellFormed(input);
   const data = await fillInferredSkills(input);
-  await assertTreeValid(data);
+  await assertTreeAssignable(data);
 
   const task = await prisma.$transaction(async (tx) => {
     const id = await createTree(tx, data, null);

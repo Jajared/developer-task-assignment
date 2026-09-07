@@ -1,10 +1,11 @@
-/**
- * The API contract as the frontend sees it. The backend declares no response
- * types — a row's columns are the response, and the shape is whatever the
- * service's Prisma query returns — so this file is derived by hand from
- * `backend/db/schema.prisma`. Keep it in step when the schema changes.
- */
+import type { ErrorResponse } from "./api";
+import type { Developer } from "./developer";
+import type { Skill } from "./skill";
 
+/**
+ * Mirrors the `Task` model and `TaskStatus` enum in `backend/db/schema.prisma`.
+ * Enum values are the DB's lowercase strings, exposed under PascalCase keys.
+ */
 export const TaskStatus = {
   Todo: "todo",
   InProgress: "in_progress",
@@ -12,22 +13,6 @@ export const TaskStatus = {
 } as const;
 
 export type TaskStatus = (typeof TaskStatus)[keyof typeof TaskStatus];
-
-export type Skill = {
-  id: string;
-  name: string;
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type Developer = {
-  id: string;
-  name: string;
-  createdAt: string;
-  updatedAt: string;
-  /** Skills the developer holds — this is what makes them eligible for a task. */
-  skills: Skill[];
-};
 
 export type Task = {
   id: string;
@@ -69,8 +54,10 @@ export type CreateTaskInput = {
   requiredSkillIds?: string[];
   /**
    * Subtasks to create under this task, each the same shape with its own
-   * `subtasks` — nesting is unbounded. The whole tree is written in one
-   * transaction; this is the only way a subtask is created.
+   * `subtasks`. Bounded by the caps in `lib/constants.ts` (depth, direct
+   * subtasks per task, tasks per create); the server refuses more with a 422.
+   * The whole tree is written in one transaction; this is the only way a
+   * subtask is created.
    */
   subtasks?: CreateTaskInput[];
 };
@@ -90,11 +77,6 @@ export type TaskPatch = UpdateTaskInput | UpdateTaskStatusInput;
 // Response envelopes
 export type TaskListResponse = { tasks: Task[] };
 export type TaskResponse = { task: Task };
-export type DeveloperListResponse = { developers: Developer[] };
-export type DeveloperResponse = { developer: Developer };
-export type SkillListResponse = { skills: Skill[] };
-export type SkillResponse = { skill: Skill };
-export type ErrorResponse = { error: string; details?: unknown };
 
 /**
  * A `409` from an assign or a required-skills change: the developer is missing

@@ -33,9 +33,9 @@ Use Bun, not npm/yarn/pnpm: `bun install`, `bun run <script>`, `bun test`,
 
 The Prisma schema is the source of truth for types. The backend derives them
 from the generated client; the frontend re-declares the same contract by hand
-in `frontend/lib/types.ts`. **Nothing enforces that the two agree.**
+in `frontend/types/`. **Nothing enforces that the two agree.**
 
-Changing `backend/db/schema.prisma` means updating `frontend/lib/types.ts` in
+Changing `backend/db/schema.prisma` means updating `frontend/types/` in
 the same change. Neither `typecheck` nor `lint` will catch it if you don't.
 
 ## Environment

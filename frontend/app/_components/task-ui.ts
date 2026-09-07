@@ -4,7 +4,7 @@ import {
   type Developer,
   type Skill,
   type Task,
-} from "@/lib/types";
+} from "@/types";
 
 export const STATUSES: TaskStatus[] = [
   TaskStatus.Todo,
@@ -70,9 +70,11 @@ export function initials(name: string): string {
     .toUpperCase();
 }
 
-export function formatDate(iso: string | null | undefined): string {
-  if (!iso) return "No date";
-  return new Date(iso.slice(0, 10) + "T00:00:00").toLocaleDateString("en-US", {
+/** A timestamp from the API as a short local date, e.g. "Sep 7". */
+export function formatDate(iso: string): string {
+  // Parse the full instant and let the formatter pick the viewer's calendar
+  // day. Slicing the date part off first would show the UTC day instead.
+  return new Date(iso).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
   });

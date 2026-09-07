@@ -193,9 +193,12 @@ any new write path has to run the same check.
 
 A create body whose task — or any nested subtask — has no `requiredSkillIds`
 (omitted or `[]`, the validator makes them the same) gets them **inferred from
-the title** by Gemini before anything else happens. `fillInferredSkills()` in
-`tasks.service.ts` asks `skillService.inferRequiredSkillIds()` for each
-skill-less node in parallel and hands the filled tree to the rule checks.
+the title** by Gemini. The create path runs in three steps, in this order:
+`assertTreeWellFormed()` (depth, the completion rule, and that every named
+skill and developer exists — cheap, no LLM), then `fillInferredSkills()`,
+which asks `skillService.inferRequiredSkillIds()` for each skill-less node in
+parallel, then `assertTreeAssignable()` over the filled tree. A body that is
+going to be refused for shape or a missing row never costs an inference.
 
 The split: `lib/llm.ts` is the only module that knows Gemini exists —
 `generateStructured({ schema, systemInstruction, prompt })` sends a Zod
@@ -246,7 +249,7 @@ bun run db:migrate               # migration + regenerates the client
 Also: `db:generate`, `db:deploy`, `db:push`, `db:seed`, `db:studio`,
 `db:reset`, and `db:dev` (Prisma's own local Postgres, if you skip Docker).
 
-Then update `frontend/lib/types.ts` by hand — nothing enforces that it matches.
+Then update `frontend/types/` by hand — nothing enforces that it matches.
 The backend no longer declares response types, so check it against an actual
 response (`curl localhost:4000/api/tasks`), not against a type.
 
@@ -266,8 +269,12 @@ GET    /api/skills/:id
 ```
 
 **Subtasks.** `Task.parentId` is a nullable self-reference (`onDelete:
-Cascade`); a subtask is an ordinary task row with every property a task has,
-nested to any depth. The list stays flat — every row carries `parentId` and
+Cascade`); a subtask is an ordinary task row with every property a task has.
+A create body is bounded three ways, all from `lib/constants.ts`: depth
+(`MAX_SUBTASK_DEPTH`, checked in the service), direct subtasks per task
+(`MAX_SUBTASKS_PER_TASK`) and tasks per request (`MAX_TASKS_PER_CREATE`),
+the last two enforced by the validator as 422s so a single request can't
+carry thousands of nodes into the LLM and the transaction. The list stays flat — every row carries `parentId` and
 the client builds the tree — and no response nests `subtasks`. Subtasks are
 created only inline: the create body accepts `subtasks: [...]`, each entry the
 same shape with its own `subtasks`, and the whole tree is written in one

@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { developerQueries, skillQueries, taskQueries } from "@/lib/queries";
-import type { CreateTaskInput, TaskPatch } from "@/lib/types";
+import type { CreateTaskInput, TaskPatch } from "@/types";
 import { cn } from "@/lib/utils";
 
 import { CreateTaskPanel, type NewTaskInput } from "./create-task-panel";

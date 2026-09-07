@@ -43,10 +43,16 @@ components/
                        #   plus side-panel.tsx, our Sheet wrapper
 lib/
   api.ts               # typed fetch client for the backend; throws ApiError
+  constants.ts         # subtask caps, mirrored from the backend
   queries.ts           # queryOptions shared by server prefetch and client hooks
   query-client.ts      # getQueryClient(): per-request on the server, singleton in the browser
-  types.ts             # the API contract, hand-maintained (see below)
   utils.ts             # re-exports `cn` (shadcn's clsx + tailwind-merge)
+types/                 # the API contract, hand-maintained (see below); import via `@/types`
+  index.ts             # barrel re-exporting the domain files below
+  api.ts               # ErrorResponse — shapes every route shares
+  skill.ts             # Skill + its envelopes
+  developer.ts         # Developer + its envelopes
+  task.ts              # TaskStatus, Task, the create/patch inputs, envelopes, 409 shapes
 components.json        # shadcn config: radix-nova style, neutral base
 next.config.ts         # sets turbopack.root to the repo root
 ```
@@ -108,7 +114,10 @@ the form is wrapped in `FormProvider` so nested pieces use `useFormContext()`:
 - `SubtaskList` is `useFieldArray` on `${path}subtasks`, one `SubtaskCard`
   per entry keyed by the array's `field.id` (never the index), and each card
   renders `TaskFormFields` for its path and then `SubtaskList` again — that
-  recursion is the nesting, and depth is unbounded.
+  recursion is the nesting. The recursion itself has no limit; the "Add
+  subtask" button is withheld once any of the three caps in `lib/constants.ts`
+  is reached (depth, direct subtasks per task, tasks per create), mirroring
+  the server's limits.
 
 `toCreateInput()` in `task-manager.tsx` maps the tree to `CreateTaskInput`,
 whose `subtasks` is the same shape recursively.
@@ -129,16 +138,21 @@ disabled until skills are picked, because the server checks the assignment
 rule against the *inferred* skills and would 409 a guess. The create toast in
 `task-manager.tsx` names the inferred skills when the root had none picked.
 
-## types.ts is hand-maintained — this is the sharp edge
+## types/ is hand-maintained — this is the sharp edge
 
-`lib/types.ts` duplicates the backend's API contract, which is derived from
+`types/` duplicates the backend's API contract, which is derived from
 `backend/db/schema.prisma`. There is no shared package and **no compiler check
-that the two agree**.
+that the two agree**. One file per domain — `task.ts`, `developer.ts`,
+`skill.ts` — each holding the row type, its request inputs and its response
+envelopes; `api.ts` holds only what every route shares (`ErrorResponse`).
+Import through the barrel (`@/types`); the domain files are the layout, not the import path. A new
+domain gets a new file.
 
-If a schema field changes, this file must change with it. Neither `typecheck`
-nor `lint` will fail if it drifts — you'll get wrong types that silently
-compile, or runtime data that doesn't match its type. When touching anything
-task-shaped, diff it against `backend/src/services/tasks/tasks.types.ts`.
+If a schema field changes, the matching file must change with it. Neither
+`typecheck` nor `lint` will fail if it drifts — you'll get wrong types that
+silently compile, or runtime data that doesn't match its type. The backend
+declares no response types, so check against an actual response
+(`curl localhost:4000/api/tasks`), not against a type.
 
 Enum values are the DB's lowercase strings (`"in_progress"`), exposed as const
 objects with PascalCase keys (`TaskStatus.InProgress`) — the keys differ from
@@ -232,7 +246,7 @@ Server state is React Query, following TanStack's App Router recipe:
   `query.error` themselves.
 - `app/_hooks/use-task-mutations.ts` owns the writes. `describeError()` also
   formats the two 409s: missing skills and unfinished subtasks. After creation a
-  task changes in exactly two ways, mirrored by `TaskPatch` in `lib/types.ts`:
+  task changes in exactly two ways, mirrored by `TaskPatch` in `types/task.ts`:
   `{ assigneeId }` goes to `PATCH /api/tasks/:id` and `{ status }` to
   `PATCH /api/tasks/:id/status`. Updates are optimistic against the tasks
   list, rolled back and toasted on error, and reconciled with the returned row.

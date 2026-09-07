@@ -12,7 +12,7 @@ import {
   type Developer,
   type Task,
   type TaskPatch,
-} from "@/lib/types";
+} from "@/types";
 import { cn } from "@/lib/utils";
 
 import { DeveloperAvatar } from "./developer-avatar";

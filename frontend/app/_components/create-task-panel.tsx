@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button";
 import { SidePanel } from "@/components/ui/side-panel";
 import { Separator } from "@/components/ui/separator";
 import { MAX_SUBTASK_DEPTH } from "@/lib/constants";
-import type { Developer, Skill } from "@/lib/types";
+import type { Developer, Skill } from "@/types";
 
-import { SubtaskList } from "./subtask-fields";
+import { SubtaskList, countTree } from "./subtask-fields";
 import {
   TaskFormFields,
   emptyTask,
@@ -42,10 +42,6 @@ function toInput(values: TaskFormValues): NewTaskInput {
     assigneeId: values.assigneeId,
     subtasks: values.subtasks.map(toInput),
   };
-}
-
-function countTree(values: TaskFormValues[]): number {
-  return values.reduce((n, v) => n + 1 + countTree(v.subtasks), 0);
 }
 
 /**

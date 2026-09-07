@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { TaskStatus } from "@/generated/prisma/enums.ts";
+import { MAX_SUBTASKS_PER_TASK, MAX_TASKS_PER_CREATE } from "@/lib/constants.ts";
 import { parseOrThrow } from "@/lib/validate.ts";
 
 /**
@@ -12,9 +13,12 @@ import { parseOrThrow } from "@/lib/validate.ts";
  * that pairing is *allowed* is a rule, not a shape — tasks.service.ts owns it.
  *
  * A create body may carry `subtasks`, each with exactly the same shape and
- * their own `subtasks` in turn — nesting is unbounded. The recursion is what
- * makes the schema self-referential, so its type is declared by hand below
- * and `z.lazy` closes the loop.
+ * their own `subtasks` in turn. The recursion is what makes the schema
+ * self-referential, so its type is declared by hand below and `z.lazy` closes
+ * the loop. Size is bounded here in two ways — at most
+ * `MAX_SUBTASKS_PER_TASK` direct subtasks per task, and at most
+ * `MAX_TASKS_PER_CREATE` tasks in the whole body — so a single request can't
+ * carry thousands of nodes; depth is the service's rule (`MAX_SUBTASK_DEPTH`).
  */
 
 /** The fields every task has, subtasks included, before recursion is added. */
@@ -49,9 +53,35 @@ export type TCreateTask = TTaskFields & { subtasks: TCreateTask[] };
 const createTaskSchema: z.ZodType<TCreateTask, z.ZodTypeDef, TCreateTaskInput> =
   taskFieldsSchema.extend({
     subtasks: z.lazy(() =>
-      z.array(createTaskSchema, { message: "Subtasks must be a list of tasks" }).default([]),
+      z
+        .array(createTaskSchema, { message: "Subtasks must be a list of tasks" })
+        .max(MAX_SUBTASKS_PER_TASK, `A task may have at most ${MAX_SUBTASKS_PER_TASK} direct subtasks`)
+        .default([]),
     ),
   });
+
+/** The root plus every subtask at any depth. */
+function countTasks(task: TCreateTask): number {
+  return task.subtasks.reduce((total, subtask) => total + countTasks(subtask), 1);
+}
+
+/**
+ * The whole create body. The total-size check sits here, on the root only,
+ * rather than inside the recursive schema, so it runs once per request.
+ */
+const createTaskBodySchema = createTaskSchema.superRefine((task, ctx) => {
+  const total = countTasks(task);
+  if (total > MAX_TASKS_PER_CREATE) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.too_big,
+      type: "array",
+      maximum: MAX_TASKS_PER_CREATE,
+      inclusive: true,
+      path: ["subtasks"],
+      message: `A create may contain at most ${MAX_TASKS_PER_CREATE} tasks in total (this one has ${total})`,
+    });
+  }
+});
 
 /**
  * Body for `PATCH /api/tasks/:id`. Assignment is the only thing that route
@@ -84,7 +114,7 @@ export const validateTaskId = (payload: unknown): TTaskId =>
   parseOrThrow(taskIdSchema, payload, "Invalid task id.");
 
 export const validateCreateTask = (payload: unknown): TCreateTask =>
-  parseOrThrow(createTaskSchema, payload, "Invalid payload to create task.");
+  parseOrThrow(createTaskBodySchema, payload, "Invalid payload to create task.");
 
 export const validateUpdateTask = (payload: unknown): TUpdateTask =>
   parseOrThrow(updateTaskSchema, payload, "Invalid payload to update task.");
