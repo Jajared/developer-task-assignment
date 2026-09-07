@@ -1,6 +1,7 @@
 import { prisma } from "../../db/prisma.ts";
 import { HttpError } from "../../lib/http-error.ts";
-import type { TCreateTask, TUpdateTask } from "./tasks.validator.ts";
+import type { TaskStatus } from "../../generated/prisma/enums.ts";
+import type { TCreateTask, TUpdateTask, TUpdateTaskStatus } from "./tasks.validator.ts";
 
 /** No task with that id — the same 404 wherever a task is looked up. */
 function taskNotFound(): HttpError {
@@ -99,6 +100,7 @@ export async function createTask(data: TCreateTask) {
       status: data.status,
       priority: data.priority,
       assigneeId,
+      dueDate: data.dueDate ?? null,
       requiredSkills: { connect: requiredSkillIds.map((id) => ({ id })) },
     },
     include: { assignee: true, requiredSkills: { orderBy: { name: "asc" } } },
@@ -106,44 +108,37 @@ export async function createTask(data: TCreateTask) {
 }
 
 /**
- * Partial update. Fields left out of the body keep their current value —
- * which matters for the rule check: changing only the assignee still has to
- * be judged against the skills the task already requires, and changing only
- * the required skills has to be judged against the developer already on it.
+ * Reassign a task. The rule check runs against the skills the task already
+ * requires, so an under-skilled developer is refused with a 409.
  */
 export async function updateTask(id: string, data: TUpdateTask) {
   const current = await prisma.task.findUnique({
     where: { id },
-    select: { assigneeId: true, requiredSkills: { select: { id: true } } },
+    select: { requiredSkills: { select: { id: true } } },
   });
   if (!current) throw taskNotFound();
 
-  // `undefined` means "leave alone"; an explicit null unassigns.
-  const assigneeId = data.assigneeId === undefined ? current.assigneeId : (data.assigneeId ?? null);
-  const requiredSkillIds =
-    data.requiredSkillIds ?? current.requiredSkills.map((skill) => skill.id);
-
-  await assertAssignable(assigneeId, requiredSkillIds);
+  await assertAssignable(
+    data.assigneeId,
+    current.requiredSkills.map((skill) => skill.id),
+  );
 
   return prisma.task.update({
     where: { id },
-    data: {
-      title: data.title,
-      description: data.description === undefined ? undefined : (data.description ?? null),
-      status: data.status,
-      priority: data.priority,
-      assigneeId: data.assigneeId === undefined ? undefined : assigneeId,
-      // `set` replaces the whole join, so omitting the field leaves it be.
-      requiredSkills:
-        data.requiredSkillIds === undefined
-          ? undefined
-          : { set: requiredSkillIds.map((skillId) => ({ id: skillId })) },
-    },
+    data: { assigneeId: data.assigneeId },
     include: { assignee: true, requiredSkills: { orderBy: { name: "asc" } } },
   });
 }
 
-export async function deleteTask(id: string): Promise<void> {
-  const { count } = await prisma.task.deleteMany({ where: { id } });
-  if (count === 0) throw taskNotFound();
+/** Status-only change; the assignment rule is untouched by it. */
+export async function updateTaskStatus(id: string, data: TUpdateTaskStatus) {
+  const exists = await prisma.task.count({ where: { id } });
+  if (exists === 0) throw taskNotFound();
+
+  const status: TaskStatus = data.status;
+  return prisma.task.update({
+    where: { id },
+    data: { status },
+    include: { assignee: true, requiredSkills: { orderBy: { name: "asc" } } },
+  });
 }

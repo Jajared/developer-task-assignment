@@ -10,4 +10,3 @@ tasksRouter.post("/", controller.createTask);
 // The narrow route comes first: /:id/status must not be swallowed by /:id.
 tasksRouter.patch("/:id/status", controller.updateTaskStatus);
 tasksRouter.patch("/:id", controller.updateTask);
-tasksRouter.delete("/:id", controller.deleteTask);

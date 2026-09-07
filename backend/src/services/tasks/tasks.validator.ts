@@ -8,7 +8,7 @@ import { parseOrThrow } from "../../lib/validate.ts";
  * schema's enums, so the API rejects anything the database column would.
  *
  * Relations are written by id: `assigneeId` names a developer, and
- * `requiredSkillIds` replaces the task's whole required-skill set. Whether
+ * `requiredSkillIds` (create only) is the task's required-skill set. Whether
  * that pairing is *allowed* is a rule, not a shape — tasks.service.ts owns it.
  */
 
@@ -33,10 +33,26 @@ const createTaskSchema = z.object({
   requiredSkillIds: z
     .array(z.string().uuid("Required skills must be skill ids"))
     .default([]),
+  // A calendar date, sent as YYYY-MM-DD. Stored in a DATE column, so it is
+  // parsed at UTC midnight and comes back the same way.
+  dueDate: z
+    .string()
+    .date("Due date must be YYYY-MM-DD")
+    .nullish()
+    .transform((value) => (value == null ? value : new Date(`${value}T00:00:00.000Z`))),
 });
 
-/** Every field optional, for PATCH. */
-const updateTaskSchema = createTaskSchema.partial();
+/**
+ * Body for `PATCH /api/tasks/:id`. Assignment is the only thing that route
+ * changes: null unassigns. Everything else about a task is fixed at creation,
+ * and status has its own route.
+ */
+const updateTaskSchema = z.object({
+  assigneeId: z
+    .string({ message: "assigneeId is required (null to unassign)" })
+    .uuid("Assignee must be a developer id")
+    .nullable(),
+});
 
 /** Body for the dedicated status route, where only the status may change. */
 const updateTaskStatusSchema = z.object({

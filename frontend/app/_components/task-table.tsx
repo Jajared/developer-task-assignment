@@ -8,23 +8,27 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { UiTask } from "@/lib/mock-data";
-import { TaskStatus, type Developer } from "@/lib/types";
+import {
+  TaskStatus,
+  type Developer,
+  type Task,
+  type TaskPatch,
+} from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 import { DeveloperAvatar } from "./developer-avatar";
 import { SkillBadge } from "./skill-badge";
 import { AssigneeSelect, StatusSelect } from "./task-selects";
-import { formatDate } from "./task-ui";
+import { dateOnly, formatDate } from "./task-ui";
 
 type Props = {
-  tasks: UiTask[];
+  tasks: Task[];
   developers: Developer[];
   selectedId: string | null;
   today: string;
   showDescriptions?: boolean;
   onOpen: (id: string) => void;
-  onUpdate: (id: string, patch: Partial<UiTask>) => void;
+  onUpdate: (id: string, patch: TaskPatch) => void;
 };
 
 const headCell =
@@ -65,7 +69,8 @@ export function TaskTable({
           const done = task.status === TaskStatus.Done;
           const assignee =
             developers.find((d) => d.id === task.assigneeId) ?? null;
-          const overdue = !done && !!task.dueDate && task.dueDate < today;
+          const due = dateOnly(task.dueDate);
+          const overdue = !done && !!due && due < today;
           const selected = task.id === selectedId;
           return (
             <TableRow

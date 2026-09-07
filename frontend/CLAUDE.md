@@ -8,8 +8,8 @@ conventions, and the docs are vendored in `node_modules/next/dist/docs/`.
 
 Dependencies are `next`, `react`, `react-dom` plus shadcn/ui and what it
 pulls in (`radix-ui`, `class-variance-authority`, `cn`, `lucide-react`,
-`tw-animate-css`, `cmdk`, `sonner`), plus `react-hook-form` for form state.
-No data-fetching library and no `zod` — add one only if asked. Forms use
+`tw-animate-css`, `cmdk`, `sonner`), plus `react-hook-form` for form state
+and `@tanstack/react-query` for server state. No `zod` — add it only if asked. Forms use
 `useForm` directly with inline `validate` rules (see
 `app/_components/create-task-panel.tsx`); `Controller` wraps the non-native
 inputs such as the shadcn `Select` and the skill toggle chips.
@@ -20,15 +20,18 @@ inputs such as the shadcn `Select` and the skill toggle chips.
 app/
   layout.tsx           # root layout, Geist fonts, metadata,
                        #   TooltipProvider + Toaster
-  page.tsx             # the task list — a server component that seeds
-                       #   the client shell (mock data for now)
+  page.tsx             # the task list — a server component that prefetches
+                       #   into React Query and hydrates the client shell
+  providers.tsx        # QueryClientProvider, wired in layout.tsx
   _components/         # components private to this route (see below)
+  _hooks/              # React Query mutation hooks for this route
   globals.css          # tailwind + shadcn theme tokens (see below)
 components/
   ui/                  # shadcn/ui components — generated, ours to edit
 lib/
-  api.ts               # typed fetch client for the backend (not wired yet)
-  mock-data.ts         # in-memory fixtures the page renders today
+  api.ts               # typed fetch client for the backend; throws ApiError
+  queries.ts           # queryOptions shared by server prefetch and client hooks
+  query-client.ts      # getQueryClient(): per-request on the server, singleton in the browser
   types.ts             # the API contract, hand-maintained (see below)
   utils.ts             # re-exports `cn` (shadcn's clsx + tailwind-merge)
 components.json        # shadcn config: radix-nova style, neutral base
@@ -36,9 +39,9 @@ next.config.ts         # sets turbopack.root to the repo root
 ```
 
 This is a single-page app. Route-private components live in `_components/`
-next to the route (`app/_components/` for the only page today); the root
-`components/` directory is for shared pieces only, which so far means
-`components/ui/`.
+and route-private hooks in `_hooks/`, both next to the route (`app/_components/`
+and `app/_hooks/` for the only page today); the root `components/` directory is
+for shared pieces only, which so far means `components/ui/`.
 
 Render on the server wherever possible. `page.tsx` is a server component and
 stays one; add `"use client"` only on the component that actually needs state
@@ -48,9 +51,8 @@ pieces like `backlog-heading.tsx` are server components passed into it as
 props. Helpers in `task-ui.ts` and presentational bits (`skill-badge`,
 `developer-avatar`, `side-panel`) have no directive so they work on either side.
 
-The backend is not wired in yet: `page.tsx` seeds the shell from
-`lib/mock-data.ts`. Its `UiTask` adds a `dueDate` the API doesn't have, and the
-statuses are the schema's three (`todo`, `in_progress`, `done`).
+Skills and developers are read-only reference data from the API; the create
+form offers the seeded skill pool and has no way to add to it.
 
 ## types.ts is hand-maintained — this is the sharp edge
 
@@ -127,15 +129,33 @@ directly. If
 
 All requests go through `lib/api.ts`. It reads `NEXT_PUBLIC_API_URL`
 (default `http://localhost:4000`) and sets `cache: "no-store"`, because task
-data is mutable and must not be served from the build cache.
+data is mutable and must not be served from the build cache. A non-2xx response
+throws `ApiError`, which carries the status and the server's `{ error, details }`
+body — a 409 from the assignment rule lists `details.missingSkills`.
+`describeError()` in `app/_hooks/use-task-mutations.ts` turns one into a
+toast message.
 
 `NEXT_PUBLIC_*` is inlined at build time, not read at runtime — changing the
 API URL means a rebuild. Put it in `.env.local` (gitignored);
 `.env.example` is the committed reference.
 
-`api.ts` throws on a non-2xx response. `page.tsx` catches that and renders an
-error panel rather than crashing the route — keep that pattern, since the
-backend is a separate process that may simply be down.
+Server state is React Query, following TanStack's App Router recipe:
+
+- `lib/queries.ts` holds `queryOptions()` for tasks, developers and skills. Both
+  the server prefetch and the client hooks import from here so keys and
+  fetchers can't drift.
+- `app/page.tsx` (server) prefetches all three into a request-scoped client from
+  `getQueryClient()` and wraps the client shell in `HydrationBoundary`. The
+  first paint is server-rendered with real data, and `useQuery` on the client
+  reads the hydrated cache rather than fetching again (`staleTime` is 60s).
+  `prefetchQuery` swallows failures, so a down API means the client refetches,
+  fails, and `TaskManager` renders its error panel — the route never crashes.
+- `app/_hooks/use-task-mutations.ts` owns the writes. After creation a
+  task changes in exactly two ways, mirrored by `TaskPatch` in `lib/types.ts`:
+  `{ assigneeId }` goes to `PATCH /api/tasks/:id` and `{ status }` to
+  `PATCH /api/tasks/:id/status`. Updates are optimistic against the tasks
+  list, rolled back and toasted on error, and reconciled with the returned row.
+  The detail panel shows everything else read-only.
 
 ## Conventions
 

@@ -1,22 +1,22 @@
 "use client";
 
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import type { UiTask } from "@/lib/mock-data";
-import { TaskStatus, type Developer, type Skill } from "@/lib/types";
+import { Skeleton } from "@/components/ui/skeleton";
+import { developerQueries, skillQueries, taskQueries } from "@/lib/queries";
+import type { TaskPatch, TaskStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 import { CreateTaskPanel, type NewTaskInput } from "./create-task-panel";
 import { TaskDetailPanel } from "./task-detail-panel";
 import { TaskTable } from "./task-table";
 import { STATUSES, STATUS_LABEL, todayIso } from "./task-ui";
+import { describeError, useTaskMutations } from "@/app/_hooks/use-task-mutations";
 
 type Props = {
-  initialTasks: UiTask[];
-  developers: Developer[];
-  initialSkills: Skill[];
   /** Server-rendered heading; kept out of the client bundle. */
   heading: React.ReactNode;
   showDescriptions?: boolean;
@@ -32,23 +32,26 @@ const FILTERS: { value: Filter; label: string }[] = [
 ];
 
 /**
- * The one client boundary on the page: owns task/filter/panel state, since the
- * side panels sit beside the table and both react to the same selection.
- * Everything is in memory for now; wiring `lib/api.ts` in later means
- * replacing the setState calls in the handlers.
+ * The one client boundary on the page. Reads tasks, developers and skills
+ * from the React Query cache — hydrated by the server prefetch in
+ * `app/page.tsx` — and owns the filter and side-panel selection.
  */
-export function TaskManager({
-  initialTasks,
-  developers,
-  initialSkills,
-  heading,
-  showDescriptions = true,
-}: Props) {
-  const [tasks, setTasks] = useState(initialTasks);
-  const [skills, setSkills] = useState(initialSkills);
+export function TaskManager({ heading, showDescriptions = true }: Props) {
+  const tasksQuery = useQuery(taskQueries.list());
+  const developersQuery = useQuery(developerQueries.list());
+  const skillsQuery = useQuery(skillQueries.list());
+  const { update, create } = useTaskMutations();
+
   const [filter, setFilter] = useState<Filter>("all");
   const [panel, setPanel] = useState<Panel>(null);
   const [today] = useState(todayIso);
+
+  const tasks = tasksQuery.data ?? [];
+  const developers = developersQuery.data ?? [];
+  const skills = skillsQuery.data ?? [];
+  const error = tasksQuery.error ?? developersQuery.error ?? skillsQuery.error;
+  const loading =
+    tasksQuery.isPending || developersQuery.isPending || skillsQuery.isPending;
 
   const visible = tasks.filter((t) =>
     filter === "all"
@@ -63,48 +66,31 @@ export function TaskManager({
       ? (tasks.find((t) => t.id === panel.id) ?? null)
       : null;
 
-  const updateTask = (id: string, patch: Partial<UiTask>) => {
-    const updatedAt = new Date().toISOString();
-    setTasks((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, ...patch, updatedAt } : t)),
-    );
-  };
-
-  const addSkill = (name: string): Skill => {
-    const stamp = new Date().toISOString();
-    const skill: Skill = {
-      id: `local-${crypto.randomUUID()}`,
-      name,
-      createdAt: stamp,
-      updatedAt: stamp,
-    };
-    setSkills((prev) => [...prev, skill]);
-    return skill;
-  };
+  const updateTask = (id: string, patch: TaskPatch) =>
+    update.mutate({ id, input: patch });
 
   const createTask = (input: NewTaskInput) => {
-    const stamp = new Date().toISOString();
-    const task: UiTask = {
-      id: `local-${crypto.randomUUID()}`,
-      title: input.title,
-      description: input.description || null,
-      status: TaskStatus.Todo,
-      priority: input.priority,
-      assigneeId: input.assigneeId,
-      createdAt: stamp,
-      updatedAt: stamp,
-      requiredSkills: input.skills,
-      dueDate: input.dueDate,
-    };
-    setTasks((prev) => [task, ...prev]);
-    setFilter("all");
-    setPanel({ kind: "detail", id: task.id });
-    const assignee = developers.find((d) => d.id === input.assigneeId);
-    toast.success(`"${task.title}" created.`, {
-      description: assignee
-        ? `Assigned to ${assignee.name}.`
-        : "Assign a developer when ready.",
-    });
+    create.mutate(
+      {
+        title: input.title,
+        description: input.description || null,
+        priority: input.priority,
+        assigneeId: input.assigneeId,
+        requiredSkillIds: input.skills.map((s) => s.id),
+        dueDate: input.dueDate,
+      },
+      {
+        onSuccess: ({ task }) => {
+          setFilter("all");
+          setPanel({ kind: "detail", id: task.id });
+          toast.success(`"${task.title}" created.`, {
+            description: task.assignee
+              ? `Assigned to ${task.assignee.name}.`
+              : "Assign a developer when ready.",
+          });
+        },
+      },
+    );
   };
 
   return (
@@ -115,6 +101,7 @@ export function TaskManager({
             {heading}
             <Button
               size="lg"
+              disabled={!!error || loading}
               onClick={() => setPanel({ kind: "create" })}
               className="bg-blue-600 text-white hover:bg-blue-700"
             >
@@ -156,15 +143,32 @@ export function TaskManager({
         </div>
 
         <div className="flex-1 overflow-auto px-8 pb-12">
-          <TaskTable
-            tasks={visible}
-            developers={developers}
-            selectedId={selected?.id ?? null}
-            today={today}
-            showDescriptions={showDescriptions}
-            onOpen={(id) => setPanel({ kind: "detail", id })}
-            onUpdate={updateTask}
-          />
+          {error ? (
+            <div className="mt-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+              <p className="font-medium">Could not reach the API.</p>
+              <p className="mt-1 font-mono text-xs">{describeError(error)}</p>
+              <p className="mt-2">
+                Start both apps from the repo root with{" "}
+                <code className="font-mono">bun dev</code>.
+              </p>
+            </div>
+          ) : loading ? (
+            <div className="flex flex-col gap-3 pt-4" aria-busy>
+              {Array.from({ length: 5 }, (_, i) => (
+                <Skeleton key={i} className="h-11 w-full" />
+              ))}
+            </div>
+          ) : (
+            <TaskTable
+              tasks={visible}
+              developers={developers}
+              selectedId={selected?.id ?? null}
+              today={today}
+              showDescriptions={showDescriptions}
+              onOpen={(id) => setPanel({ kind: "detail", id })}
+              onUpdate={updateTask}
+            />
+          )}
         </div>
       </main>
 
@@ -182,8 +186,8 @@ export function TaskManager({
         <CreateTaskPanel
           skills={skills}
           developers={developers}
-          onAddSkill={addSkill}
           onCreate={createTask}
+          pending={create.isPending}
           onClose={() => setPanel(null)}
         />
       ) : null}

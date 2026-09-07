@@ -1,18 +1,31 @@
+import { HydrationBoundary, dehydrate } from "@tanstack/react-query";
+
 import { BacklogHeading } from "@/app/_components/backlog-heading";
 import { TaskManager } from "@/app/_components/task-manager";
-import { DEVELOPERS, SKILLS, TASKS } from "@/lib/mock-data";
+import { developerQueries, skillQueries, taskQueries } from "@/lib/queries";
+import { getQueryClient } from "@/lib/query-client";
 
 /**
- * Server component. Seeds the client shell from in-memory fixtures for now;
- * once the backend is wired up, `listTasks()` from `lib/api.ts` goes here.
+ * Server component. Prefetches everything the page needs from the API into a
+ * request-scoped QueryClient and hands the dehydrated cache to the client
+ * shell, so the first paint is server-rendered with real data and the client
+ * hooks pick up without a second fetch.
+ *
+ * `prefetchQuery` swallows failures on purpose: if the API is down the query
+ * is simply absent from the cache, the client retries, and `TaskManager`
+ * renders its error panel instead of the route crashing.
  */
-export default function Home() {
+export default async function Home() {
+  const queryClient = getQueryClient();
+  await Promise.all([
+    queryClient.prefetchQuery(taskQueries.list()),
+    queryClient.prefetchQuery(developerQueries.list()),
+    queryClient.prefetchQuery(skillQueries.list()),
+  ]);
+
   return (
-    <TaskManager
-      initialTasks={TASKS}
-      developers={DEVELOPERS}
-      initialSkills={SKILLS}
-      heading={<BacklogHeading />}
-    />
+    <HydrationBoundary state={dehydrate(queryClient)}>
+      <TaskManager heading={<BacklogHeading />} />
+    </HydrationBoundary>
   );
 }

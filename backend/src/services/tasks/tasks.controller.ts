@@ -60,23 +60,12 @@ async function updateTaskStatus(req: Request, res: Response, next: NextFunction)
   logVerbose(`Update task status taskId[${req.params.id}]`, req.body);
   try {
     const { id } = taskValidator.validateTaskId(req.params);
-    const { status } = taskValidator.validateUpdateTaskStatus(req.body);
-    const task = await taskService.updateTask(id, { status });
+    const payload = taskValidator.validateUpdateTaskStatus(req.body);
+    const task = await taskService.updateTaskStatus(id, payload);
     res.status(200).json({ task });
   } catch (error) {
     next(error);
   }
 }
 
-async function deleteTask(req: Request, res: Response, next: NextFunction): Promise<void> {
-  log(`Delete task taskId[${req.params.id}]`);
-  try {
-    const { id } = taskValidator.validateTaskId(req.params);
-    await taskService.deleteTask(id);
-    res.status(204).end();
-  } catch (error) {
-    next(error);
-  }
-}
-
-export { getTasks, getTask, createTask, updateTask, updateTaskStatus, deleteTask };
+export { getTasks, getTask, createTask, updateTask, updateTaskStatus };

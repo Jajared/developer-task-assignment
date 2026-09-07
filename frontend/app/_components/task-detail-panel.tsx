@@ -1,27 +1,35 @@
 "use client";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import type { UiTask } from "@/lib/mock-data";
-import { TaskStatus, type Developer } from "@/lib/types";
+import {
+  TaskStatus,
+  type Developer,
+  type Task,
+  type TaskPatch,
+} from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 import { DeveloperAvatar } from "./developer-avatar";
 import { SidePanel } from "./side-panel";
 import { SkillBadge } from "./skill-badge";
-import { AssigneeSelect, PrioritySelect, StatusSelect } from "./task-selects";
-import { formatDate } from "./task-ui";
+import { AssigneeSelect, StatusSelect } from "./task-selects";
+import { PRIORITY_LABEL, PRIORITY_STYLE, formatDate } from "./task-ui";
 
 type Props = {
-  task: UiTask;
+  task: Task;
   developers: Developer[];
-  onUpdate: (id: string, patch: Partial<UiTask>) => void;
+  onUpdate: (id: string, patch: TaskPatch) => void;
   onClose: () => void;
 };
 
 const fieldLabel = "text-[13px] text-muted-foreground";
 
+/**
+ * After creation only two things about a task can change — who holds it and
+ * its status — so those are the only controls here. Everything else is shown
+ * read-only.
+ */
 export function TaskDetailPanel({
   task,
   developers,
@@ -30,11 +38,11 @@ export function TaskDetailPanel({
 }: Props) {
   const done = task.status === TaskStatus.Done;
   const assignee = developers.find((d) => d.id === task.assigneeId) ?? null;
-  const patch = (p: Partial<UiTask>) => onUpdate(task.id, p);
+  const patch = (p: TaskPatch) => onUpdate(task.id, p);
 
   return (
     <SidePanel
-      title={task.title || "Task detail"}
+      title={task.title}
       onClose={onClose}
       header={
         <Button
@@ -54,15 +62,17 @@ export function TaskDetailPanel({
         </Button>
       }
     >
-      <div className="flex flex-col gap-5 px-6 py-5">
-        <Input
-          aria-label="Task name"
-          value={task.title}
-          onChange={(e) => patch({ title: e.target.value })}
-          className="-mx-2 h-auto w-[calc(100%+1rem)] border-transparent px-2 py-1.5 text-xl md:text-xl font-bold shadow-none hover:border-border"
-        />
+      <div className="flex flex-col gap-7 px-6 py-6">
+        <h2
+          className={cn(
+            "text-xl font-bold",
+            done && "text-muted-foreground line-through",
+          )}
+        >
+          {task.title}
+        </h2>
 
-        <div className="grid grid-cols-[110px_1fr] items-center gap-x-3 gap-y-3.5">
+        <div className="grid grid-cols-[110px_1fr] items-center gap-x-3 gap-y-5">
           <span className={fieldLabel}>Assignee</span>
           <div className="flex items-center gap-2">
             <DeveloperAvatar developers={developers} developer={assignee} />
@@ -83,20 +93,15 @@ export function TaskDetailPanel({
           />
 
           <span className={fieldLabel}>Priority</span>
-          <PrioritySelect
-            value={task.priority}
-            onChange={(priority) => patch({ priority })}
-            className="justify-self-start"
-          />
+          <Badge
+            variant="secondary"
+            className={cn("border-transparent", PRIORITY_STYLE[task.priority])}
+          >
+            {PRIORITY_LABEL[task.priority]}
+          </Badge>
 
           <span className={fieldLabel}>Due date</span>
-          <Input
-            type="date"
-            aria-label="Due date"
-            value={task.dueDate ?? ""}
-            onChange={(e) => patch({ dueDate: e.target.value || null })}
-            className="w-fit justify-self-start"
-          />
+          <span className="text-[13px]">{formatDate(task.dueDate)}</span>
 
           <span className={fieldLabel}>Created</span>
           <span className="text-[13px]">{formatDate(task.createdAt)}</span>
@@ -111,14 +116,14 @@ export function TaskDetailPanel({
 
         <div className="flex flex-col gap-1.5">
           <span className="text-[13px] font-semibold">Description</span>
-          <Textarea
-            aria-label="Description"
-            rows={6}
-            placeholder="Add more detail to this task"
-            value={task.description ?? ""}
-            onChange={(e) => patch({ description: e.target.value })}
-            className="resize-y"
-          />
+          <p
+            className={cn(
+              "text-sm whitespace-pre-wrap",
+              !task.description && "text-muted-foreground",
+            )}
+          >
+            {task.description || "No description."}
+          </p>
         </div>
       </div>
     </SidePanel>

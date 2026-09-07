@@ -22,23 +22,22 @@ export type NewTaskInput = {
   assigneeId: string | null;
 };
 
-/** Raw form values; `newSkill` is the scratch input and never leaves the form. */
 type FormValues = {
   title: string;
   description: string;
   skills: Skill[];
-  newSkill: string;
   priority: TaskPriority;
   dueDate: string;
   assigneeId: string | null;
 };
 
 type Props = {
+  /** The seeded skill pool from the API; there is no route to add to it. */
   skills: Skill[];
   developers: Developer[];
-  /** Called when the user adds a skill the pool doesn't know yet. */
-  onAddSkill: (name: string) => Skill;
   onCreate: (input: NewTaskInput) => void;
+  /** True while the create request is in flight. */
+  pending?: boolean;
   onClose: () => void;
 };
 
@@ -49,8 +48,8 @@ const errorText = "text-xs text-red-600";
 export function CreateTaskPanel({
   skills,
   developers,
-  onAddSkill,
   onCreate,
+  pending = false,
   onClose,
 }: Props) {
   const { register, control, handleSubmit, getValues, setValue, formState } =
@@ -59,7 +58,6 @@ export function CreateTaskPanel({
         title: "",
         description: "",
         skills: [],
-        newSkill: "",
         priority: TaskPriority.Medium,
         dueDate: "",
         assigneeId: null,
@@ -77,18 +75,6 @@ export function CreateTaskPanel({
     setValue("skills", next, { shouldValidate: isSubmitted });
     const assignee = developers.find((d) => d.id === getValues("assigneeId"));
     if (assignee && !hasAllSkills(assignee, next)) setValue("assigneeId", null);
-  };
-
-  const addSkill = () => {
-    const name = getValues("newSkill").trim();
-    if (!name) return;
-    const existing = skills.find(
-      (s) => s.name.toLowerCase() === name.toLowerCase(),
-    );
-    const skill = existing ?? onAddSkill(name);
-    const current = getValues("skills");
-    if (!current.some((s) => s.id === skill.id)) setSkills([...current, skill]);
-    setValue("newSkill", "");
   };
 
   const submit = handleSubmit((values) => {
@@ -111,7 +97,7 @@ export function CreateTaskPanel({
       <form
         onSubmit={submit}
         noValidate
-        className="flex flex-1 flex-col gap-5 px-6 pt-5 pb-8"
+        className="flex flex-1 flex-col gap-7 px-6 pt-6 pb-8"
       >
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="new-task-title" className={label}>
@@ -140,7 +126,7 @@ export function CreateTaskPanel({
             id="new-task-description"
             rows={6}
             placeholder="What does done look like?"
-            className="resize-y"
+            className="field-sizing-fixed resize-y"
             {...register("description")}
           />
         </div>
@@ -183,28 +169,6 @@ export function CreateTaskPanel({
               </div>
             )}
           />
-          <div className="flex items-center gap-2">
-            <Input
-              aria-label="Add another skill"
-              placeholder="Add another skill"
-              className="h-9 min-w-0 flex-1"
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  addSkill();
-                }
-              }}
-              {...register("newSkill")}
-            />
-            <Button
-              type="button"
-              variant="outline"
-              size="lg"
-              onClick={addSkill}
-            >
-              Add
-            </Button>
-          </div>
           {errors.skills ? (
             <span className={errorText}>{errors.skills.message}</span>
           ) : null}
@@ -280,9 +244,10 @@ export function CreateTaskPanel({
           <Button
             type="submit"
             size="lg"
+            disabled={pending}
             className="bg-blue-600 text-white hover:bg-blue-700"
           >
-            Create task
+            {pending ? "Creating…" : "Create task"}
           </Button>
         </div>
       </form>

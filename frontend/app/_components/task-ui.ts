@@ -1,9 +1,21 @@
 /** Presentation helpers shared by the task list and its side panels. */
-import { TaskPriority, TaskStatus, type Developer, type Skill } from "@/lib/types";
-import type { UiTask } from "@/lib/mock-data";
+import {
+  TaskPriority,
+  TaskStatus,
+  type Developer,
+  type Skill,
+} from "@/lib/types";
 
-export const STATUSES: TaskStatus[] = [TaskStatus.Todo, TaskStatus.InProgress, TaskStatus.Done];
-export const PRIORITIES: TaskPriority[] = [TaskPriority.Low, TaskPriority.Medium, TaskPriority.High];
+export const STATUSES: TaskStatus[] = [
+  TaskStatus.Todo,
+  TaskStatus.InProgress,
+  TaskStatus.Done,
+];
+export const PRIORITIES: TaskPriority[] = [
+  TaskPriority.Low,
+  TaskPriority.Medium,
+  TaskPriority.High,
+];
 
 export const STATUS_LABEL: Record<TaskStatus, string> = {
   [TaskStatus.Todo]: "To do",
@@ -48,9 +60,19 @@ export function skillStyle(name: string): string {
   return SKILL_PALETTE[h % SKILL_PALETTE.length];
 }
 
-const AVATAR_PALETTE = ["bg-violet-500", "bg-orange-500", "bg-teal-500", "bg-pink-500", "bg-blue-500", "bg-emerald-500"];
+const AVATAR_PALETTE = [
+  "bg-violet-500",
+  "bg-orange-500",
+  "bg-teal-500",
+  "bg-pink-500",
+  "bg-blue-500",
+  "bg-emerald-500",
+];
 
-export function avatarStyle(developers: Developer[], developerId: string): string {
+export function avatarStyle(
+  developers: Developer[],
+  developerId: string,
+): string {
   const idx = developers.findIndex((d) => d.id === developerId);
   return AVATAR_PALETTE[(idx < 0 ? 0 : idx) % AVATAR_PALETTE.length];
 }
@@ -64,9 +86,17 @@ export function initials(name: string): string {
     .toUpperCase();
 }
 
+/** The YYYY-MM-DD part of an ISO timestamp, or null. */
+export function dateOnly(iso: string | null | undefined): string | null {
+  return iso ? iso.slice(0, 10) : null;
+}
+
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return "No date";
-  return new Date(iso.slice(0, 10) + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return new Date(iso.slice(0, 10) + "T00:00:00").toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
 }
 
 export function todayIso(): string {
@@ -81,11 +111,9 @@ export function missingSkills(dev: Developer, required: Skill[]): Skill[] {
   return required.filter((s) => !dev.skills.some((d) => d.id === s.id));
 }
 
-export function eligibleDevelopers(developers: Developer[], required: Skill[]): Developer[] {
+export function eligibleDevelopers(
+  developers: Developer[],
+  required: Skill[],
+): Developer[] {
   return developers.filter((d) => hasAllSkills(d, required));
-}
-
-/** Count of a developer's tasks that are not done. */
-export function openLoad(tasks: UiTask[], developerId: string): number {
-  return tasks.filter((t) => t.assigneeId === developerId && t.status !== TaskStatus.Done).length;
 }

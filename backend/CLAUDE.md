@@ -30,7 +30,7 @@ src/
   services/skills/        # same four files; read-only
 ```
 
-Three services: `tasks/` (full CRUD), `developers/` and `skills/` (read-only —
+Three services: `tasks/` (create, read, assign, set status — no delete), `developers/` and `skills/` (read-only —
 both are seeded reference data, and there are no write routes for them).
 `/health` is deliberately *not* a service — it's three lines in `app.ts`.
 
@@ -68,7 +68,7 @@ These cost real time if you don't know them:
 - **Layers stay in their lane.** Controllers do HTTP; services own every Prisma
   call; validators own request shape. A controller should never build a `where`.
 - **Services export plain functions, named for the entity** — `listTasks`,
-  `findTaskById`, `createTask`, `updateTask`, `deleteTask`; `listSkills`,
+  `findTaskById`, `createTask`, `updateTask`, `updateTaskStatus`; `listSkills`,
   `findSkillById`. Not one object of methods. Controllers import the module as
   a namespace (`import * as taskService from "./tasks.service.ts"`), so call
   sites read `taskService.findTaskById(id)`.
@@ -99,7 +99,7 @@ These cost real time if you don't know them:
     }
   }
 
-  export { getTasks, getTask, createTask, updateTask, updateTaskStatus, deleteTask };
+  export { getTasks, getTask, createTask, updateTask, updateTaskStatus };
   ```
 
   Declare the handlers, then export them in one block at the bottom.
@@ -137,7 +137,7 @@ These cost real time if you don't know them:
 
 ## Status codes
 
-201 on create, 204 on delete, 404 for a missing row, 422 for a Zod failure
+201 on create, 404 for a missing row, 422 for a Zod failure
 (not 400 — the body parsed, it just failed the schema) and for a body naming a
 row that doesn't exist. The JSON 404 fallback and the 500 handler are in
 `app.ts`.
@@ -182,17 +182,18 @@ GET    /health
 GET    /api/tasks                 list, newest first
 GET    /api/tasks/:id
 POST   /api/tasks                 201
-PATCH  /api/tasks/:id             partial; assignment rule applies
+PATCH  /api/tasks/:id             assignment only: { assigneeId } (null unassigns); rule applies
 PATCH  /api/tasks/:id/status      status only — registered BEFORE /:id
-DELETE /api/tasks/:id             204
 GET    /api/developers            each with their skills
 GET    /api/developers/:id
 GET    /api/skills
 GET    /api/skills/:id
 ```
 
-A task's writable relations are ids: `assigneeId` and `requiredSkillIds`
-(which replaces the whole set). Reads return them nested as `assignee` and
+A task's title, description, priority, due date and required skills are set
+once, at creation. After that only two things change: the assignee
+(`PATCH /:id`, body `{ assigneeId }`) and the status (`PATCH /:id/status`).
+Relations are written by id: `assigneeId` and, on create, `requiredSkillIds`. Reads return them nested as `assignee` and
 `requiredSkills`, each a **whole row** — `assignee` carries its own
 timestamps, `requiredSkills` entries carry theirs.
 

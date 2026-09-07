@@ -43,6 +43,12 @@ export type Task = {
   status: TaskStatus;
   priority: TaskPriority;
   assigneeId: string | null;
+  /**
+   * Calendar date the task is due, or null. The column is a DATE, so the wire
+   * value is an ISO timestamp at UTC midnight (`2026-09-12T00:00:00.000Z`);
+   * take the first ten characters to get the day.
+   */
+  dueDate: string | null;
   createdAt: string;
   updatedAt: string;
   /**
@@ -65,12 +71,21 @@ export type CreateTaskInput = {
   priority?: TaskPriority;
   assigneeId?: string | null;
   requiredSkillIds?: string[];
+  /** YYYY-MM-DD, or null to clear. */
+  dueDate?: string | null;
 };
 
-export type UpdateTaskInput = Partial<CreateTaskInput>;
+/**
+ * Body for `PATCH /api/tasks/:id`. Assignment is all that route changes; null
+ * unassigns. A task's other fields are fixed at creation.
+ */
+export type UpdateTaskInput = { assigneeId: string | null };
 
 /** Body for `PATCH /api/tasks/:id/status`. */
 export type UpdateTaskStatusInput = { status: TaskStatus };
+
+/** The two things a task can change after creation. */
+export type TaskPatch = UpdateTaskInput | UpdateTaskStatusInput;
 
 // Response envelopes
 export type TaskListResponse = { tasks: Task[] };

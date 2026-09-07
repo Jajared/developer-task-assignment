@@ -57,7 +57,8 @@ Every `.env.example` is committed; the real `.env` files are gitignored.
 ## State of the repo
 
 - `backend/db/migrations/` holds the initial migration (Skill, Developer, Task
-  and the two join tables). A fresh checkout needs
+  and the two join tables) plus `add_task_due_date` (nullable `Task.dueDate`,
+  a DATE). A fresh checkout needs
   `cp .env.example .env && bun run db:up`, then `bun --filter backend db:migrate`.
 - The test suite has never run against Prisma. It needs a live database.
 
