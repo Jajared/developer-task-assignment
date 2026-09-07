@@ -50,8 +50,10 @@ Every `.env.example` is committed; the real `.env` files are gitignored.
   values in step with `DATABASE_URL` in `backend/.env` — nothing enforces that.
 
 - `backend/.env` — `DATABASE_URL` (required, throws on boot if missing), `PORT`,
-  `NODE_ENV`, `CORS_ORIGINS`. The default `DATABASE_URL` already matches the
-  compose service.
+  `NODE_ENV`, `CORS_ORIGINS`, and optionally `GEMINI_API_KEY` (Google AI
+  Studio) for LLM inference of a task's required skills — without it, tasks
+  created with no skills keep none. The default `DATABASE_URL` already matches
+  the compose service.
 - `frontend/.env.local` — `NEXT_PUBLIC_API_URL`, inlined at build time.
 
 ## State of the repo

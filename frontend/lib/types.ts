@@ -61,6 +61,11 @@ export type CreateTaskInput = {
   description?: string | null;
   status?: TaskStatus;
   assigneeId?: string | null;
+  /**
+   * Omitted or empty means "not specified": the server then infers the
+   * required skills from the title with an LLM and the created row comes back
+   * with them attached. Applies to every subtask independently.
+   */
   requiredSkillIds?: string[];
   /**
    * Subtasks to create under this task, each the same shape with its own

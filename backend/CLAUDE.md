@@ -20,13 +20,15 @@ src/
   lib/http-error.ts    # HttpError: an error that carries its HTTP status
   lib/validate.ts      # parseOrThrow(): ZodError → 422 HttpError
   lib/log.ts           # log() / logVerbose(); verbose is silent in production
+  lib/llm.ts           # generateStructured(): Gemini + Zod structured output; knows no domain
   services/tasks/
     tasks.route.ts        # path → controller
     tasks.controller.ts   # HTTP in/out only
     tasks.service.ts      # business logic + Prisma queries
     tasks.validator.ts    # Zod schemas + validateX() functions
   services/developers/    # same four files; read-only
-  services/skills/        # same four files; read-only
+  services/skills/        # same four files; read-only over HTTP, plus
+                          # inferRequiredSkillIds() — the LLM inference rule
 ```
 
 Three services: `tasks/` (create, read, assign, set status — no delete), `developers/` and `skills/` (read-only —
@@ -135,7 +137,8 @@ These cost real time if you don't know them:
   `@/generated/prisma/enums.ts`); sibling files stay relative
   (`./tasks.service.ts`). The alias is declared in `tsconfig.json` `paths` and
   Bun honours it at runtime and in `bun build`, so there is no extra tooling.
-- **Read env only in `lib/env.ts`.**
+- **Read env only in `lib/env.ts`.** `GEMINI_API_KEY` (optional) and
+  `GEMINI_MODEL` (default `gemini-2.5-flash`) live there too.
 
 ## Status codes
 
@@ -160,6 +163,33 @@ response names what's missing:
 
 Nothing in the database enforces this — the join tables are independent — so
 any new write path has to run the same check.
+
+## Skill inference
+
+A create body whose task — or any nested subtask — has no `requiredSkillIds`
+(omitted or `[]`, the validator makes them the same) gets them **inferred from
+the title** by Gemini before anything else happens. `fillInferredSkills()` in
+`tasks.service.ts` asks `skillService.inferRequiredSkillIds()` for each
+skill-less node in parallel and hands the filled tree to the rule checks.
+
+The split: `lib/llm.ts` is the only module that knows Gemini exists —
+`generateStructured({ schema, systemInstruction, prompt })` sends a Zod
+schema's JSON Schema as `responseJsonSchema` and parses the reply strictly
+against the same schema, throwing on anything off-shape. It knows nothing
+about skills. `skills.service.ts` owns the rule: it loads the `Skill` rows,
+builds `z.array(z.enum(names))` from them so the model can only pick skills
+that exist, maps the names back to ids, and swallows failures into `[]`.
+
+Two consequences:
+
+- **Inference never fails a create.** No `GEMINI_API_KEY`, a timeout (10s), a
+  quota error or a bad reply all log a warning and leave that task with no
+  skills; the 201 still happens. A task with explicit skills never triggers a
+  call.
+- **The assignment rule sees the inferred skills.** A body with an assignee
+  but no skills is a 409 if the developer lacks what was inferred. The UI can't
+  send that combination (the assignee select is disabled until skills are
+  picked); an API client can.
 
 **The other 409 is the completion rule.** A task may only be `done` once every
 one of its direct subtasks is `done`; `assertCompletable()` in

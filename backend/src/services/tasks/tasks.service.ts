@@ -2,6 +2,7 @@ import { prisma } from "@/db/prisma.ts";
 import { MAX_SUBTASK_DEPTH } from "@/lib/constants.ts";
 import { HttpError } from "@/lib/http-error.ts";
 import { TaskStatus } from "@/generated/prisma/enums.ts";
+import * as skillService from "@/services/skills/skills.service.ts";
 import type { TCreateTask, TUpdateTask, TUpdateTaskStatus } from "./tasks.validator.ts";
 
 /** The relations every task response carries, written once and reused. */
@@ -123,6 +124,35 @@ async function assertTreeValid(task: TCreateTask, depth = 0): Promise<void> {
   for (const subtask of task.subtasks) await assertTreeValid(subtask, depth + 1);
 }
 
+/** True if this task or any subtask below it was sent without required skills. */
+function hasSkillless(task: TCreateTask): boolean {
+  return task.requiredSkillIds.length === 0 || task.subtasks.some(hasSkillless);
+}
+
+/**
+ * A task sent without required skills gets them inferred from its title —
+ * `skillService.inferRequiredSkillIds()` owns how. Runs over the whole tree at
+ * once, so several skill-less subtasks cost one round-trip in wall time, not
+ * one each. Returns a new tree; the input is left alone.
+ *
+ * Inference never fails the request — a missing key or a model error leaves
+ * that task with no skills.
+ */
+async function fillInferredSkills(task: TCreateTask): Promise<TCreateTask> {
+  if (!hasSkillless(task)) return task;
+
+  const fill = async (node: TCreateTask): Promise<TCreateTask> => {
+    const [requiredSkillIds, subtasks] = await Promise.all([
+      node.requiredSkillIds.length > 0
+        ? node.requiredSkillIds
+        : skillService.inferRequiredSkillIds({ title: node.title, description: node.description }),
+      Promise.all(node.subtasks.map(fill)),
+    ]);
+    return { ...node, requiredSkillIds, subtasks };
+  };
+  return fill(task);
+}
+
 /** Writes one task and, recursively, its subtasks under it. Returns the root id. */
 async function createTree(db: Db, task: TCreateTask, parentId: string | null): Promise<string> {
   const row = await db.task.create({
@@ -167,14 +197,18 @@ export async function findTaskById(id: string) {
 
 /**
  * Create a task and, in the same transaction, every subtask nested in the
- * payload. Both rules are checked for the whole tree first, so a bad leaf
- * means nothing is written. Subtasks are only ever created this way — there
- * is no route to attach one to an existing task.
+ * payload. Any node sent without required skills has them inferred first;
+ * then both rules are checked for the whole tree, so a bad leaf means nothing
+ * is written. The rules see the *inferred* skills, so an assignee who lacks
+ * them is refused (409) just as if the client had named them. Subtasks are
+ * only ever created this way — there is no route to attach one to an existing
+ * task.
  *
  * The response is the root row alone; subtasks are ordinary rows in the list,
  * each carrying its `parentId`.
  */
-export async function createTask(data: TCreateTask) {
+export async function createTask(input: TCreateTask) {
+  const data = await fillInferredSkills(input);
   await assertTreeValid(data);
 
   return prisma.$transaction(async (tx) => {

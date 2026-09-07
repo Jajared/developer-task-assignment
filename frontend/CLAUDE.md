@@ -121,7 +121,13 @@ which opens the task on click, so parent and children read as the same kind
 of thing.
 
 Skills and developers are read-only reference data from the API; the create
-form offers the seeded skill pool and has no way to add to it.
+form offers the seeded skill pool and has no way to add to it. **Required
+skills are optional in the form**, at every level: a task (or subtask) sent
+with none has them inferred server-side from its title by an LLM, and the
+201 row comes back with `requiredSkills` filled. The assignee select stays
+disabled until skills are picked, because the server checks the assignment
+rule against the *inferred* skills and would 409 a guess. The create toast in
+`task-manager.tsx` names the inferred skills when the root had none picked.
 
 ## types.ts is hand-maintained — this is the sharp edge
 

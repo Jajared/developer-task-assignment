@@ -19,4 +19,11 @@ export const env = {
     .split(",")
     .map((origin) => origin.trim())
     .filter(Boolean),
+  /**
+   * Google AI Studio key for inferring a task's required skills from its
+   * title. Optional: without it, inference is skipped and a task created with
+   * no skills simply keeps none.
+   */
+  geminiApiKey: process.env.GEMINI_API_KEY || null,
+  geminiModel: process.env.GEMINI_MODEL || "gemini-2.5-flash",
 };

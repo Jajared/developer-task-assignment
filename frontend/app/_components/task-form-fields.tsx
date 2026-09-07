@@ -143,20 +143,17 @@ export function TaskFormFields({
       </div>
 
       <div className="flex flex-col gap-2">
-        <span className={label}>Required skills {required}</span>
+        <span className={label}>Required skills</span>
+        <span className="text-xs text-muted-foreground">
+          Leave empty and the required skills will be inferred from the task name.
+        </span>
         <Controller
           control={control}
           name={skillsName}
-          rules={{
-            validate: (v) => v.length > 0 || "Pick at least one skill.",
-          }}
           render={({ field }) => (
             <SkillPicker skills={skills} value={field.value} onChange={setSkills} />
           )}
         />
-        {errors?.skills ? (
-          <span className={errorText}>{errors.skills.message}</span>
-        ) : null}
       </div>
 
       <div className="flex flex-col gap-1.5">
@@ -183,7 +180,7 @@ export function TaskFormFields({
               eligibleOnly
               disabled={selected.length === 0 || matches.length === 0}
               placeholder={
-                selected.length === 0 ? "Pick required skills first" : "Unassigned"
+                selected.length === 0 ? "Pick skills to assign now" : "Unassigned"
               }
               className="h-10"
             />
