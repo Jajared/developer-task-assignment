@@ -7,13 +7,13 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { developerQueries, skillQueries, taskQueries } from "@/lib/queries";
-import type { TaskPatch, TaskStatus } from "@/lib/types";
+import type { CreateTaskInput, TaskPatch, TaskStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 import { CreateTaskPanel, type NewTaskInput } from "./create-task-panel";
 import { TaskDetailPanel } from "./task-detail-panel";
 import { TaskTable } from "./task-table";
-import { STATUSES, STATUS_LABEL, todayIso } from "./task-ui";
+import { STATUSES, STATUS_LABEL, ancestorsOf, todayIso } from "./task-ui";
 import { describeError, useTaskMutations } from "@/app/_hooks/use-task-mutations";
 
 type Props = {
@@ -23,6 +23,23 @@ type Props = {
 };
 
 type Filter = "all" | "unassigned" | TaskStatus;
+
+/** The form's tree, mapped to the API body; skills become ids at every level. */
+function toCreateInput(input: NewTaskInput): CreateTaskInput {
+  return {
+    title: input.title,
+    description: input.description || null,
+    priority: input.priority,
+    assigneeId: input.assigneeId,
+    requiredSkillIds: input.skills.map((s) => s.id),
+    dueDate: input.dueDate,
+    subtasks: input.subtasks.map(toCreateInput),
+  };
+}
+
+function countSubtasks(input: NewTaskInput): number {
+  return input.subtasks.reduce((n, s) => n + 1 + countSubtasks(s), 0);
+}
 type Panel = { kind: "detail"; id: string } | { kind: "create" } | null;
 
 const FILTERS: { value: Filter; label: string }[] = [
@@ -44,6 +61,8 @@ export function TaskManager({ heading, showDescriptions = true }: Props) {
 
   const [filter, setFilter] = useState<Filter>("all");
   const [panel, setPanel] = useState<Panel>(null);
+  // Tasks whose subtasks are shown in the list. Collapsed by default.
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
   const [today] = useState(todayIso);
 
   const tasks = tasksQuery.data ?? [];
@@ -69,28 +88,40 @@ export function TaskManager({ heading, showDescriptions = true }: Props) {
   const updateTask = (id: string, patch: TaskPatch) =>
     update.mutate({ id, input: patch });
 
+  const toggleExpanded = (id: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+
+  /** Open a task's details and make sure it is visible in the list. */
+  const openTask = (id: string) => {
+    setPanel({ kind: "detail", id });
+    const ancestors = ancestorsOf(tasks, id);
+    if (ancestors.some((a) => !expanded.has(a)))
+      setExpanded((prev) => new Set([...prev, ...ancestors]));
+  };
+
   const createTask = (input: NewTaskInput) => {
-    create.mutate(
-      {
-        title: input.title,
-        description: input.description || null,
-        priority: input.priority,
-        assigneeId: input.assigneeId,
-        requiredSkillIds: input.skills.map((s) => s.id),
-        dueDate: input.dueDate,
-      },
-      {
-        onSuccess: ({ task }) => {
-          setFilter("all");
-          setPanel({ kind: "detail", id: task.id });
-          toast.success(`"${task.title}" created.`, {
+    const subtasks = countSubtasks(input);
+    create.mutate(toCreateInput(input), {
+      onSuccess: ({ task }) => {
+        setFilter("all");
+        setPanel({ kind: "detail", id: task.id });
+        if (subtasks) setExpanded((prev) => new Set([...prev, task.id]));
+        toast.success(
+          subtasks
+            ? `"${task.title}" created with ${subtasks} subtask${subtasks > 1 ? "s" : ""}.`
+            : `"${task.title}" created.`,
+          {
             description: task.assignee
               ? `Assigned to ${task.assignee.name}.`
               : "Assign a developer when ready.",
-          });
-        },
+          },
+        );
       },
-    );
+    });
   };
 
   return (
@@ -161,11 +192,14 @@ export function TaskManager({ heading, showDescriptions = true }: Props) {
           ) : (
             <TaskTable
               tasks={visible}
+              allTasks={tasks}
               developers={developers}
               selectedId={selected?.id ?? null}
               today={today}
               showDescriptions={showDescriptions}
-              onOpen={(id) => setPanel({ kind: "detail", id })}
+              expanded={expanded}
+              onToggleExpanded={toggleExpanded}
+              onOpen={openTask}
               onUpdate={updateTask}
             />
           )}
@@ -176,8 +210,10 @@ export function TaskManager({ heading, showDescriptions = true }: Props) {
         <TaskDetailPanel
           key={selected.id}
           task={selected}
+          tasks={tasks}
           developers={developers}
           onUpdate={updateTask}
+          onOpen={openTask}
           onClose={() => setPanel(null)}
         />
       ) : null}

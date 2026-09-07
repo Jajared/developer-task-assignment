@@ -125,13 +125,20 @@ export function AssigneeSelect({
 const pillTrigger =
   "h-7 rounded-full border-transparent px-2.5 text-xs font-semibold shadow-none [&_svg]:text-current [&_svg]:opacity-70";
 
+/**
+ * Status picker. `doneDisabled` greys out "Done" while the task still has open
+ * subtasks — the server refuses that transition with a 409, so the option is
+ * withheld up front rather than offered and rolled back.
+ */
 export function StatusSelect({
   value,
   onChange,
+  doneDisabled = false,
   className,
 }: {
   value: TaskStatus;
   onChange: (status: TaskStatus) => void;
+  doneDisabled?: boolean;
   className?: string;
 }) {
   return (
@@ -143,11 +150,28 @@ export function StatusSelect({
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {STATUSES.map((s) => (
-          <SelectItem key={s} value={s}>
-            {STATUS_LABEL[s]}
-          </SelectItem>
-        ))}
+        {STATUSES.map((s) => {
+          const blocked = s === "done" && doneDisabled && value !== "done";
+          return (
+            <SelectItem
+              key={s}
+              value={s}
+              disabled={blocked}
+              textValue={STATUS_LABEL[s]}
+            >
+              {blocked ? (
+                <span className="flex flex-col">
+                  <span>{STATUS_LABEL[s]}</span>
+                  <span className="text-xs text-muted-foreground">
+                    Finish all subtasks first
+                  </span>
+                </span>
+              ) : (
+                STATUS_LABEL[s]
+              )}
+            </SelectItem>
+          );
+        })}
       </SelectContent>
     </Select>
   );

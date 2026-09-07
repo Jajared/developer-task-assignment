@@ -10,15 +10,29 @@ import type {
   MissingSkillsError,
   Task,
   TaskPatch,
+  UnfinishedSubtasksError,
 } from "@/lib/types";
 
 /** Turn an API failure into a sentence for a toast. */
 export function describeError(err: unknown): string {
   if (err instanceof ApiError) {
-    const missing = (err.details as MissingSkillsError["details"] | undefined)
-      ?.missingSkills;
-    if (err.status === 409 && missing?.length) {
-      return `${err.message}: ${missing.map((s) => s.name).join(", ")}.`;
+    if (err.status === 409) {
+      const details = err.details as
+        | Partial<MissingSkillsError["details"]>
+        | Partial<UnfinishedSubtasksError["details"]>
+        | undefined;
+      const missing =
+        details && "missingSkills" in details ? details.missingSkills : undefined;
+      if (missing?.length) {
+        return `${err.message}: ${missing.map((s) => s.name).join(", ")}.`;
+      }
+      const open =
+        details && "unfinishedSubtasks" in details
+          ? details.unfinishedSubtasks
+          : undefined;
+      if (open?.length) {
+        return `${err.message}: ${open.map((s) => s.title).join(", ")}.`;
+      }
     }
     return err.message;
   }

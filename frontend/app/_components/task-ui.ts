@@ -4,6 +4,7 @@ import {
   TaskStatus,
   type Developer,
   type Skill,
+  type Task,
 } from "@/lib/types";
 
 export const STATUSES: TaskStatus[] = [
@@ -116,4 +117,69 @@ export function eligibleDevelopers(
   required: Skill[],
 ): Developer[] {
   return developers.filter((d) => hasAllSkills(d, required));
+}
+
+// ---- Subtasks. The API returns a flat list where each row carries `parentId`;
+// these helpers turn that into a tree where the UI needs one.
+
+/** Direct subtasks of `parentId`, in list (newest-first) order. */
+export function childrenOf(tasks: Task[], parentId: string): Task[] {
+  return tasks.filter((t) => t.parentId === parentId);
+}
+
+/**
+ * True while any direct subtask is not done — the same rule the server
+ * applies before it lets a task become done. Direct children suffice: a done
+ * child already vouches for its own subtree.
+ */
+export function hasUnfinishedSubtasks(task: Task, tasks: Task[]): boolean {
+  return childrenOf(tasks, task.id).some((t) => t.status !== TaskStatus.Done);
+}
+
+export type TreeRow = {
+  task: Task;
+  depth: number;
+  /** Direct subtasks present in the list; 0 for a leaf. */
+  childCount: number;
+};
+
+/**
+ * Depth-first order for rendering a flat list as a tree. A task whose parent
+ * is not in `tasks` is treated as a root, so a filtered list still shows a
+ * child whose parent the filter removed. Subtasks of a task that is not in
+ * `expanded` are left out — the row still reports its `childCount`, so the
+ * table can offer to expand it.
+ */
+export function flattenTree(tasks: Task[], expanded: ReadonlySet<string>): TreeRow[] {
+  const present = new Set(tasks.map((t) => t.id));
+  const byParent = new Map<string | null, Task[]>();
+  for (const t of tasks) {
+    const key = t.parentId && present.has(t.parentId) ? t.parentId : null;
+    const list = byParent.get(key);
+    if (list) list.push(t);
+    else byParent.set(key, [t]);
+  }
+
+  const rows: TreeRow[] = [];
+  const visit = (parentId: string | null, depth: number) => {
+    for (const task of byParent.get(parentId) ?? []) {
+      const children = byParent.get(task.id) ?? [];
+      rows.push({ task, depth, childCount: children.length });
+      if (expanded.has(task.id)) visit(task.id, depth + 1);
+    }
+  };
+  visit(null, 0);
+  return rows;
+}
+
+/** Ids of every task above `id`, nearest first. Used to reveal a subtask in the list. */
+export function ancestorsOf(tasks: Task[], id: string): string[] {
+  const byId = new Map(tasks.map((t) => [t.id, t]));
+  const out: string[] = [];
+  let parentId = byId.get(id)?.parentId ?? null;
+  while (parentId && byId.has(parentId) && !out.includes(parentId)) {
+    out.push(parentId);
+    parentId = byId.get(parentId)?.parentId ?? null;
+  }
+  return out;
 }

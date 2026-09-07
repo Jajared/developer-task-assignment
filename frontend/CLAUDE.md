@@ -12,7 +12,8 @@ pulls in (`radix-ui`, `class-variance-authority`, `cn`, `lucide-react`,
 and `@tanstack/react-query` for server state. No `zod` — add it only if asked. Forms use
 `useForm` directly with inline `validate` rules (see
 `app/_components/create-task-panel.tsx`); `Controller` wraps the non-native
-inputs such as the shadcn `Select` and the skill toggle chips.
+inputs such as the shadcn `Select` and the skill toggle chips. The create form
+is recursive — see **Subtasks** below.
 
 ## Layout
 
@@ -24,10 +25,16 @@ app/
                        #   into React Query and hydrates the client shell
   providers.tsx        # QueryClientProvider, wired in layout.tsx
   _components/         # components private to this route (see below)
+    create-task-panel.tsx   # the create form: root fields + SubtaskList
+    task-form-fields.tsx    # one task's fields, bound at a form path; TaskFormValues
+    subtask-fields.tsx      # SubtaskList/SubtaskCard — the recursive field array
+    skill-picker.tsx        # required-skill toggle chips
+    task-ui.ts              # labels, styles, tree helpers (flattenTree, childrenOf…)
   _hooks/              # React Query mutation hooks for this route
   globals.css          # tailwind + shadcn theme tokens (see below)
 components/
-  ui/                  # shadcn/ui components — generated, ours to edit
+  ui/                  # shadcn/ui components — generated, ours to edit —
+                       #   plus side-panel.tsx, our Sheet wrapper
 lib/
   api.ts               # typed fetch client for the backend; throws ApiError
   queries.ts           # queryOptions shared by server prefetch and client hooks
@@ -49,7 +56,40 @@ or handlers, not the page. `app/_components/task-manager.tsx` is the one
 client boundary — it owns task, filter and side-panel state — and static
 pieces like `backlog-heading.tsx` are server components passed into it as
 props. Helpers in `task-ui.ts` and presentational bits (`skill-badge`,
-`developer-avatar`, `side-panel`) have no directive so they work on either side.
+`developer-avatar`) have no directive so they work on either side.
+
+## Subtasks
+
+`Task.parentId` is a nullable self-reference. The API keeps the list **flat** —
+a subtask is an ordinary row with `parentId` set, and no response nests
+`subtasks` — so the tree is built here. `task-ui.ts` has the helpers:
+`flattenTree()` (depth-first rows with `depth` and `childCount`, used by
+`task-table.tsx` to indent; subtasks are collapsed unless their parent's id is
+in the `expanded` set that `task-manager.tsx` owns, and a row whose parent was
+filtered out renders as a root), `ancestorsOf()` (so opening a subtask expands
+the rows above it),
+`childrenOf()`, and `hasUnfinishedSubtasks()`, which mirrors the server's rule
+that a task can only be done once its direct subtasks are. `StatusSelect` and
+the detail panel's "Mark complete" use it to withhold "Done" up front; the
+server still refuses with a 409 (`details.unfinishedSubtasks`) if it gets
+through. Reopening a done subtask reopens its done ancestors server-side, and
+the list refetch after the mutation shows that.
+
+Subtasks are created only inline with their root, from the create panel. The
+form state is the recursive `TaskFormValues` in `task-form-fields.tsx`, and
+the form is wrapped in `FormProvider` so nested pieces use `useFormContext()`:
+
+- `TaskFormFields` renders one task's fields at a `path` — `""` for the root,
+  `"subtasks.0."`, `"subtasks.0.subtasks.2."`… — by appending the field name.
+  The `as "title"` casts are how a dynamic path meets react-hook-form's typed
+  names; the runtime path is what gets registered.
+- `SubtaskList` is `useFieldArray` on `${path}subtasks`, one `SubtaskCard`
+  per entry keyed by the array's `field.id` (never the index), and each card
+  renders `TaskFormFields` for its path and then `SubtaskList` again — that
+  recursion is the nesting, and depth is unbounded.
+
+`toCreateInput()` in `task-manager.tsx` maps the tree to `CreateTaskInput`,
+whose `subtasks` is the same shape recursively.
 
 Skills and developers are read-only reference data from the API; the create
 form offers the seeded skill pool and has no way to add to it.
@@ -150,7 +190,8 @@ Server state is React Query, following TanStack's App Router recipe:
   reads the hydrated cache rather than fetching again (`staleTime` is 60s).
   `prefetchQuery` swallows failures, so a down API means the client refetches,
   fails, and `TaskManager` renders its error panel — the route never crashes.
-- `app/_hooks/use-task-mutations.ts` owns the writes. After creation a
+- `app/_hooks/use-task-mutations.ts` owns the writes. `describeError()` also
+  formats the two 409s: missing skills and unfinished subtasks. After creation a
   task changes in exactly two ways, mirrored by `TaskPatch` in `lib/types.ts`:
   `{ assigneeId }` goes to `PATCH /api/tasks/:id` and `{ status }` to
   `PATCH /api/tasks/:id/status`. Updates are optimistic against the tasks

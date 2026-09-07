@@ -1,7 +1,8 @@
 /**
- * The API contract as the frontend sees it. These mirror the backend's
- * `tasks.types.ts`, `developers.types.ts` and `skills.types.ts`, which are
- * derived from the Prisma schema — keep them in step when the schema changes.
+ * The API contract as the frontend sees it. The backend declares no response
+ * types — a row's columns are the response, and the shape is whatever the
+ * service's Prisma query returns — so this file is derived by hand from
+ * `backend/db/schema.prisma`. Keep it in step when the schema changes.
  */
 
 export const TaskStatus = {
@@ -49,6 +50,12 @@ export type Task = {
    * take the first ten characters to get the day.
    */
   dueDate: string | null;
+  /**
+   * The task this one is a subtask of, or null for a top-level task. The list
+   * is flat — subtasks are ordinary rows — so the tree is built client-side
+   * (see `flattenTree` in `app/_components/task-ui.ts`).
+   */
+  parentId: string | null;
   createdAt: string;
   updatedAt: string;
   /**
@@ -73,6 +80,12 @@ export type CreateTaskInput = {
   requiredSkillIds?: string[];
   /** YYYY-MM-DD, or null to clear. */
   dueDate?: string | null;
+  /**
+   * Subtasks to create under this task, each the same shape with its own
+   * `subtasks` — nesting is unbounded. The whole tree is written in one
+   * transaction; this is the only way a subtask is created.
+   */
+  subtasks?: CreateTaskInput[];
 };
 
 /**
@@ -102,4 +115,15 @@ export type ErrorResponse = { error: string; details?: unknown };
  */
 export type MissingSkillsError = ErrorResponse & {
   details: { missingSkills: { id: string; name: string }[] };
+};
+
+/**
+ * A `409` from the status route or a create: the task was to be `done` while a
+ * direct subtask was still open. On the create path the rows don't exist yet,
+ * so `id` is absent there.
+ */
+export type UnfinishedSubtasksError = ErrorResponse & {
+  details: {
+    unfinishedSubtasks: { id?: string; title: string; status: TaskStatus }[];
+  };
 };

@@ -1,5 +1,7 @@
 "use client";
 
+import { ChevronRightIcon, CornerDownRightIcon } from "lucide-react";
+
 import {
   Table,
   TableBody,
@@ -19,14 +21,25 @@ import { cn } from "@/lib/utils";
 import { DeveloperAvatar } from "./developer-avatar";
 import { SkillBadge } from "./skill-badge";
 import { AssigneeSelect, StatusSelect } from "./task-selects";
-import { dateOnly, formatDate } from "./task-ui";
+import {
+  dateOnly,
+  flattenTree,
+  formatDate,
+  hasUnfinishedSubtasks,
+} from "./task-ui";
 
 type Props = {
+  /** The rows to show, already filtered. Rendered as a tree via `parentId`. */
   tasks: Task[];
+  /** Every task, filtered or not — the Done rule is judged against all subtasks. */
+  allTasks: Task[];
   developers: Developer[];
   selectedId: string | null;
   today: string;
   showDescriptions?: boolean;
+  /** Tasks whose subtasks are shown; everything else is collapsed. */
+  expanded: ReadonlySet<string>;
+  onToggleExpanded: (id: string) => void;
   onOpen: (id: string) => void;
   onUpdate: (id: string, patch: TaskPatch) => void;
 };
@@ -38,10 +51,13 @@ const bodyCell =
 
 export function TaskTable({
   tasks,
+  allTasks,
   developers,
   selectedId,
   today,
   showDescriptions = true,
+  expanded,
+  onToggleExpanded,
   onOpen,
   onUpdate,
 }: Props) {
@@ -65,8 +81,10 @@ export function TaskTable({
         </TableRow>
       </TableHeader>
       <TableBody>
-        {tasks.map((task) => {
+        {flattenTree(tasks, expanded).map(({ task, depth, childCount }) => {
           const done = task.status === TaskStatus.Done;
+          const blocked = hasUnfinishedSubtasks(task, allTasks);
+          const isExpanded = expanded.has(task.id);
           const assignee =
             developers.find((d) => d.id === task.assigneeId) ?? null;
           const due = dateOnly(task.dueDate);
@@ -79,11 +97,38 @@ export function TaskTable({
               className="data-[state=selected]:bg-violet-50"
             >
               <TableCell className={cn(bodyCell, "border-b")}>
+                <div
+                  className="flex items-start gap-1"
+                  style={depth ? { paddingLeft: depth * 20 } : undefined}
+                >
+                  {childCount > 0 ? (
+                    <button
+                      type="button"
+                      aria-expanded={isExpanded}
+                      aria-label={`${isExpanded ? "Hide" : "Show"} ${childCount} subtask${childCount > 1 ? "s" : ""}`}
+                      onClick={() => onToggleExpanded(task.id)}
+                      className="-ml-1 flex h-5 shrink-0 items-center gap-0.5 rounded px-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+                    >
+                      <ChevronRightIcon
+                        className={cn(
+                          "size-3.5 transition-transform",
+                          isExpanded && "rotate-90",
+                        )}
+                      />
+                      {childCount}
+                    </button>
+                  ) : depth > 0 ? (
+                    <CornerDownRightIcon
+                      aria-label="Subtask"
+                      className="mt-0.5 size-3.5 shrink-0 text-muted-foreground"
+                    />
+                  ) : null}
                 <button
                   type="button"
                   onClick={() => onOpen(task.id)}
-                  className="min-w-0 flex-1 text-left outline-none focus-visible:underline"
+                  className="flex min-w-0 flex-1 text-left outline-none focus-visible:underline"
                 >
+                  <span className="min-w-0">
                   <div
                     className={cn(
                       "text-sm font-medium",
@@ -99,7 +144,9 @@ export function TaskTable({
                       {task.description}
                     </div>
                   ) : null}
+                  </span>
                 </button>
+                </div>
               </TableCell>
               <TableCell className={cn(bodyCell, "border-b")}>
                 <div className="flex flex-wrap gap-1.5">
@@ -127,6 +174,7 @@ export function TaskTable({
                 <StatusSelect
                   value={task.status}
                   onChange={(status) => onUpdate(task.id, { status })}
+                  doneDisabled={blocked}
                   className="w-full"
                 />
               </TableCell>
