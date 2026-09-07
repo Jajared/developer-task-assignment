@@ -1,4 +1,5 @@
 import { prisma } from "@/db/prisma.ts";
+import { MAX_SUBTASK_DEPTH } from "@/lib/constants.ts";
 import { HttpError } from "@/lib/http-error.ts";
 import { TaskStatus } from "@/generated/prisma/enums.ts";
 import type { TCreateTask, TUpdateTask, TUpdateTaskStatus } from "./tasks.validator.ts";
@@ -97,14 +98,29 @@ function assertCompletable(
 }
 
 /**
- * Runs both rules over a create payload and every nested subtask, before any
- * row is written. Depth-first, in payload order, so the first offending task
- * is the one reported.
+ * The nesting rule: a subtask may sit at most `MAX_SUBTASK_DEPTH` levels
+ * below its root (root is depth 0). The schema itself allows any depth; only
+ * this check, run on the create path, bounds it.
  */
-async function assertTreeValid(task: TCreateTask): Promise<void> {
+function assertWithinDepth(depth: number): void {
+  if (depth <= MAX_SUBTASK_DEPTH) return;
+  throw new HttpError({
+    message: `Subtasks may be nested at most ${MAX_SUBTASK_DEPTH} levels deep`,
+    status: 422,
+    details: { maxDepth: MAX_SUBTASK_DEPTH, depth },
+  });
+}
+
+/**
+ * Runs every rule over a create payload and its nested subtasks, before any
+ * row is written. Depth-first, in payload order, so the first offending task
+ * is the one reported. `depth` is 0 for the root.
+ */
+async function assertTreeValid(task: TCreateTask, depth = 0): Promise<void> {
+  assertWithinDepth(depth);
   await assertAssignable(task.assigneeId ?? null, task.requiredSkillIds);
   assertCompletable(task.status, task.subtasks);
-  for (const subtask of task.subtasks) await assertTreeValid(subtask);
+  for (const subtask of task.subtasks) await assertTreeValid(subtask, depth + 1);
 }
 
 /** Writes one task and, recursively, its subtasks under it. Returns the root id. */

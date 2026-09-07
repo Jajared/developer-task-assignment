@@ -5,6 +5,7 @@ import { ChevronDownIcon, PlusIcon, XIcon } from "lucide-react";
 import { useFieldArray, useFormContext, useWatch } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
+import { MAX_SUBTASK_DEPTH } from "@/lib/constants";
 import type { Developer, Skill } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -21,7 +22,10 @@ type ListProps = {
   path: FormPath;
   /** Numbering prefix for the cards, e.g. `"2."` under the second subtask. */
   numbering?: string;
+  /** Depth of the task that owns this list; its subtasks sit at `depth + 1`. */
   depth?: number;
+  /** Deepest level a subtask may sit at. Defaults to the configured limit. */
+  maxDepth?: number;
   skills: Skill[];
   developers: Developer[];
 };
@@ -30,13 +34,14 @@ type ListProps = {
  * The dynamic part of the create form. One field array per task, rendered as
  * a card per subtask; each card renders `TaskFormFields` for its own path and
  * then this list again for its own subtasks, so the tree can go as deep as
- * the user takes it. Cards are keyed by the field array's stable id, never the
+ * `maxDepth` allows — the recursion itself has no limit. Cards are keyed by the field array's stable id, never the
  * index, so removing one in the middle keeps the others' state.
  */
 export function SubtaskList({
   path,
   numbering = "",
   depth = 0,
+  maxDepth = MAX_SUBTASK_DEPTH,
   skills,
   developers,
 }: ListProps) {
@@ -45,6 +50,8 @@ export function SubtaskList({
     control,
     name: `${path}subtasks` as "subtasks",
   });
+  // A subtask added here would sit one level below this list's owner.
+  const canAdd = depth + 1 <= maxDepth;
 
   return (
     <div className={cn("flex flex-col gap-3", depth > 0 && "pt-1")}>
@@ -54,21 +61,28 @@ export function SubtaskList({
           path={`${path}subtasks.${index}.`}
           label={`${numbering}${index + 1}`}
           depth={depth}
+          maxDepth={maxDepth}
           skills={skills}
           developers={developers}
           onRemove={() => remove(index)}
         />
       ))}
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={() => append(emptyTask())}
-        className="self-start"
-      >
-        <PlusIcon />
-        {depth === 0 ? "Add subtask" : "Add nested subtask"}
-      </Button>
+      {canAdd ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => append(emptyTask())}
+          className="self-start"
+        >
+          <PlusIcon />
+          {depth === 0 ? "Add subtask" : "Add nested subtask"}
+        </Button>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          Subtasks can be nested up to {maxDepth} levels deep.
+        </p>
+      )}
     </div>
   );
 }
@@ -78,6 +92,7 @@ type CardProps = {
   /** Dotted position in the tree: "1", "1.2", "1.2.1"… */
   label: string;
   depth: number;
+  maxDepth: number;
   skills: Skill[];
   developers: Developer[];
   onRemove: () => void;
@@ -87,6 +102,7 @@ function SubtaskCard({
   path,
   label,
   depth,
+  maxDepth,
   skills,
   developers,
   onRemove,
@@ -159,6 +175,7 @@ function SubtaskCard({
             path={path}
             numbering={`${label}.`}
             depth={depth + 1}
+            maxDepth={maxDepth}
             skills={skills}
             developers={developers}
           />

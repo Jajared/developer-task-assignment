@@ -5,6 +5,7 @@ import { FormProvider, useForm, useWatch } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { SidePanel } from "@/components/ui/side-panel";
 import { Separator } from "@/components/ui/separator";
+import { MAX_SUBTASK_DEPTH } from "@/lib/constants";
 import type { Developer, Skill } from "@/lib/types";
 
 import { SubtaskList } from "./subtask-fields";
@@ -93,7 +94,8 @@ export function CreateTaskPanel({
               <div className="flex flex-col gap-0.5">
                 <span className="text-[13px] font-semibold">Subtasks</span>
                 <span className="text-xs text-muted-foreground">
-                  Optional. Subtasks can have subtasks of their own.
+                  Optional. Subtasks can be nested up to {MAX_SUBTASK_DEPTH}{" "}
+                  levels deep.
                 </span>
               </div>
               {subtaskCount > 0 ? (
