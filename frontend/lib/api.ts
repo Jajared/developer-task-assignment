@@ -9,7 +9,14 @@ import type {
   UpdateTaskStatusInput,
 } from "@/types";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+// Server components fetch from inside the container, where the backend is
+// reached by its compose hostname (API_URL, read at runtime). The browser uses
+// the public URL, inlined at build time. API_URL is never inlined, so in the
+// browser it is undefined and the chain falls through.
+const API_URL =
+  (typeof window === "undefined" && process.env.API_URL) ||
+  process.env.NEXT_PUBLIC_API_URL ||
+  "http://localhost:4000";
 
 /**
  * A non-2xx response. Carries the status and the server's `{ error, details }`

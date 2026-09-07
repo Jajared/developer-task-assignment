@@ -11,7 +11,9 @@ Bun workspace monorepo with two apps:
 | `backend/` | Express 5 on Bun, Prisma 7, Postgres, Zod, Winston, Google Gemini | 4000 |
 | `frontend/` | Next.js 16 App Router, React 19, Tailwind 4, shadcn/ui, TanStack Query | 3000 |
 
-Postgres runs in Docker (`docker-compose.yml`); both apps run on the host.
+Everything runs in Docker via `docker-compose.yml` (Postgres, migrations,
+backend, frontend). For development, run only Postgres in Docker and both apps
+on the host.
 
 ## Features
 
@@ -30,6 +32,43 @@ Postgres runs in Docker (`docker-compose.yml`); both apps run on the host.
 
 ## Getting started
 
+### Run everything in Docker
+
+Prerequisites: Docker with Compose v2.
+
+```sh
+cp .env.example .env                 # Postgres credentials (+ optional GEMINI_API_KEY)
+bun run docker:up                    # build images, start postgres, backend, frontend
+bun run docker:migrate               # REQUIRED: apply migrations and seed the database
+```
+
+Open http://localhost:3000.
+
+**Don't skip `docker:migrate`.** The containers do not migrate the database
+themselves (that step is meant to move into CI). Until it has run, the
+backend is up but every `/api` request fails with a missing-table error. Run
+it after the first `docker:up`, after `docker compose down -v`, and after
+pulling a schema change. It is idempotent: applied migrations are skipped and
+the seed only fills what is missing. Under the hood it runs
+`prisma migrate deploy` and `db/seed.ts` inside the backend image against the
+compose network.
+
+Compose builds `backend/Dockerfile` and `frontend/Dockerfile`, then starts
+Postgres, the backend on :4000 and the frontend on :3000, each gated on the
+previous being healthy. Ports 3000, 4000 and 5432 must be free on the host (stop `bun dev`
+first). `bun run docker:logs` tails everything; `bun run docker:down` stops it
+(`docker compose down -v` also drops the database).
+
+Inside the compose network the frontend's server components call the API at
+`http://backend:4000` (`API_URL`, runtime), while the browser calls
+`http://localhost:4000` (`NEXT_PUBLIC_API_URL`, baked into the frontend image).
+Serving from another host means setting `NEXT_PUBLIC_API_URL` and
+`CORS_ORIGINS` in `.env` and rebuilding. The backend runs with
+`NODE_ENV=production`, so logs are at level `http` (same one-line colored
+format as development).
+
+### Develop on the host
+
 Prerequisites: [Bun](https://bun.sh) 1.3+, Docker.
 
 ```sh
@@ -39,7 +78,7 @@ cp backend/.env.example backend/.env # DATABASE_URL etc. — defaults match comp
 
 bun run db:up                        # start Postgres on :5432
 bun --filter backend db:migrate      # apply migrations
-bun --filter backend db:seed         # skills, developers and sample tasks
+bun --filter backend db:seed         # skills and developers
 bun dev                              # backend on :4000, frontend on :3000
 ```
 
@@ -47,7 +86,7 @@ Open http://localhost:3000. The API answers at http://localhost:4000 (try
 `GET /health`).
 
 To enable skill inference, set `GEMINI_API_KEY` in `backend/.env` (a free
-Google AI Studio key works). `GEMINI_MODEL` defaults to `gemini-2.5-flash`.
+Google AI Studio key works). `GEMINI_MODEL` defaults to `gemini-3.5-flash`.
 
 Without Docker: point `DATABASE_URL` at any Postgres, or run
 `bun --filter backend db:dev` for Prisma's local server and paste the URL it
@@ -59,7 +98,10 @@ Root scripts (run from the repo root):
 
 | Command | What it does |
 | --- | --- |
-| `bun run db:up` / `db:down` / `db:logs` | Start / stop / tail the Postgres container |
+| `bun run docker:up` / `docker:logs` | Build and run / tail the whole stack in Docker |
+| `bun run docker:stop` / `docker:down` | Stop the containers (keep them) / remove containers and network (`-v` also drops the database) |
+| `bun run docker:migrate` | Apply migrations and seed inside the Docker stack (required after `docker:up`) |
+| `bun run db:up` / `db:down` / `db:logs` | Start / stop / tail only the Postgres container |
 | `bun dev` | Run backend and frontend together |
 | `bun dev:backend` / `bun dev:frontend` | Run one app |
 | `bun run build` | Generate client + bundle backend; `next build` |
@@ -90,63 +132,14 @@ Every `.env.example` is committed; the real files are gitignored.
 
 | File | Variables |
 | --- | --- |
-| `.env` | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_PORT`. Read only by `docker-compose.yml`, which refuses to start if any is missing. |
-| `backend/.env` | `DATABASE_URL` (required), `PORT`, `NODE_ENV`, `CORS_ORIGINS`, `LOG_LEVEL`, `GEMINI_API_KEY`, `GEMINI_MODEL` |
-| `frontend/.env.local` | `NEXT_PUBLIC_API_URL` (default `http://localhost:4000`), inlined at build time |
+| `.env` | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_PORT`; optional `GEMINI_API_KEY`, `GEMINI_MODEL`, `BACKEND_PORT`, `FRONTEND_PORT`, `NEXT_PUBLIC_API_URL`, `CORS_ORIGINS`. Read only by `docker-compose.yml`, which refuses to start if a Postgres variable is missing and derives the containers' `DATABASE_URL` from them. |
+| `backend/.env` (host dev only) | `DATABASE_URL` (required), `PORT`, `NODE_ENV`, `CORS_ORIGINS`, `LOG_LEVEL`, `GEMINI_API_KEY`, `GEMINI_MODEL` |
+| `frontend/.env.local` (host dev only) | `NEXT_PUBLIC_API_URL` (default `http://localhost:4000`), inlined at build time. In Docker, `API_URL` additionally sets the server-side URL at runtime. |
 
-The root `.env` and `DATABASE_URL` must describe the same database; nothing
-enforces that.
-
-## API
-
-All responses are JSON. Errors are `{ error, details? }` at the relevant
-status: 404 missing row, 422 invalid body or unknown referenced row, 409 a
-business rule refused the request.
-
-| Method | Path | Notes |
-| --- | --- | --- |
-| `GET` | `/health` | `{ status: "ok", uptime }` |
-| `GET` | `/api/tasks` | Flat list, newest first. Subtasks are rows with `parentId` set. |
-| `GET` | `/api/tasks/:id` | One task with `assignee` and `requiredSkills` nested |
-| `POST` | `/api/tasks` | Create. Body may nest `subtasks` recursively; whole tree in one transaction. 201 with the root row. |
-| `PATCH` | `/api/tasks/:id` | Body `{ assigneeId }`; `null` unassigns. 409 `details.missingSkills` if under-skilled. |
-| `PATCH` | `/api/tasks/:id/status` | Body `{ status }`. 409 `details.unfinishedSubtasks` if subtasks are open. |
-| `GET` | `/api/developers` | Each with their `skills` |
-| `GET` | `/api/developers/:id` | |
-| `GET` | `/api/skills` | |
-| `GET` | `/api/skills/:id` | |
-
-Create body:
-
-```json
-{
-  "title": "Build the settings page",
-  "description": "optional",
-  "status": "todo",
-  "assigneeId": null,
-  "requiredSkillIds": [],
-  "subtasks": [{ "title": "Wire the form" }]
-}
-```
-
-`requiredSkillIds` omitted or empty means "infer from the title" (when a
-Gemini key is configured). Limits: subtasks nest at most 4 levels deep, at
-most 20 direct subtasks per task, at most 50 tasks per create. Title,
-description and required skills are fixed after creation; only assignee and
-status change.
-
-## Data model
-
-```
-Skill      id, name (unique)
-Developer  id, name, skills[]
-Task       id, title, description?, status (todo|in_progress|done),
-           assigneeId?, requiredSkills[], parentId?
-```
-
-Skills and developers are seeded reference data with no write routes. The
-assignment and completion rules are enforced in the backend service layer,
-not by database constraints.
+When developing on the host, the root `.env` and `backend/.env`'s
+`DATABASE_URL` must describe the same database; nothing enforces that. The
+compose stack has no such gap: it builds `DATABASE_URL` from the `POSTGRES_*`
+values.
 
 ## Project structure
 
@@ -166,17 +159,10 @@ frontend/
   components/ui/            # shadcn/ui
   lib/                      # API client, query definitions, constants
   types/                    # hand-maintained copy of the API contract
-docker-compose.yml          # Postgres only
+backend/Dockerfile          # oven/bun; serves the API (docker:migrate reuses it)
+frontend/Dockerfile         # next build → standalone output on node:22-slim
+docker-compose.yml          # postgres, backend, frontend
 ```
-
-### Types are duplicated on purpose
-
-There is no shared package. The Prisma schema is the source of truth; the
-backend derives its types from the generated client, and the frontend declares
-the same contract by hand in `frontend/types/`. Nothing checks that they agree,
-so a schema change must be mirrored there in the same commit. The same goes
-for the subtask caps in `backend/src/lib/constants.ts` and
-`frontend/lib/constants.ts`.
 
 ## Testing
 

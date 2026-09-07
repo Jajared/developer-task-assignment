@@ -116,7 +116,7 @@ export function TaskFormFields({
           placeholder={
             compact
               ? "e.g. Write the migration"
-              : "e.g. Migrate auth service to OAuth 2.1"
+              : "e.g. Migrate service"
           }
           aria-invalid={errors?.title ? true : undefined}
           className="h-10 text-base md:text-[15px]"
@@ -162,7 +162,7 @@ export function TaskFormFields({
         </Label>
         <span className="text-xs text-muted-foreground">
           {selected.length === 0
-            ? "Only developers holding every required skill will be offered."
+            ? "Only developers holding every required skill will be shown. This can be assigned later"
             : matches.length
               ? `${matches.length} eligible developer${matches.length > 1 ? "s" : ""}: ${matches.map((d) => d.name).join(", ")}`
               : "No developer currently has all of these skills. Leave unassigned for now."}

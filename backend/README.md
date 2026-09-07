@@ -9,7 +9,7 @@ optional skill inference.
 From the repo root (see the root README for first-time setup):
 
 ```sh
-bun run db:up                     # Postgres in Docker
+bun run db:up                     # Postgres in Docker (bun run docker:up runs the whole stack)
 bun --filter backend db:migrate
 bun --filter backend db:seed
 bun dev:backend                   # bun --watch src/index.ts on :4000
@@ -31,12 +31,12 @@ by `src/lib/env.ts`; a bad value fails startup with a message naming it.
 | `CORS_ORIGINS` | `http://localhost:3000` | Comma-separated allowed origins |
 | `LOG_LEVEL` | `debug` (dev), `http` (prod) | Winston threshold: `error`, `warn`, `info`, `http`, `debug` |
 | `GEMINI_API_KEY` | empty | Enables skill inference. Empty disables it. |
-| `GEMINI_MODEL` | `gemini-2.5-flash` | |
+| `GEMINI_MODEL` | `gemini-3.5-flash` | |
 
 ## Logging
 
-Winston. One human-readable colored line per entry in development; one JSON
-object per line in production. Every response carries `X-Request-Id`
+Winston. One human-readable colored line per entry in every environment (no
+JSON mode). Every response carries `X-Request-Id`
 (an incoming `x-request-id` is honored), and every log line from that request
 carries the same id. An access line is written per request at `http` (2xx/3xx),
 `warn` (4xx) or `error` (5xx). Under `NODE_ENV=test` logging is silent unless

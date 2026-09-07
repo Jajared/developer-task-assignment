@@ -1,0 +1,14 @@
+.git
+node_modules
+**/node_modules
+**/.next
+**/dist
+**/coverage
+**/.env
+**/.env.*
+!**/.env.example
+backend/src/generated
+**/*.tsbuildinfo
+frontend/next-env.d.ts
+.idea
+.DS_Store

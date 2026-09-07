@@ -17,16 +17,14 @@ import { env } from "./env.ts";
  * so production records every request but nothing that echoes user input —
  * request bodies and LLM replies are `debug`, off unless someone turns it up.
  *
- * Development prints one coloured, human-readable line per entry. Production
- * prints one JSON object per line for log shippers to parse.
+ * Every environment prints the same coloured, human-readable line per entry;
+ * there is no JSON mode.
  */
 
-const isProduction = env.nodeEnv === "production";
-
-/** Meta keys that are already rendered elsewhere in the dev line. */
+/** Meta keys that are already rendered elsewhere in the line. */
 const RENDERED_KEYS = new Set(["level", "message", "timestamp", "stack", "requestId", "service"]);
 
-const devFormat = format.combine(
+const lineFormat = format.combine(
   format.timestamp({ format: "HH:mm:ss.SSS" }),
   format.errors({ stack: true }),
   format.colorize(),
@@ -43,11 +41,9 @@ const devFormat = format.combine(
   }),
 );
 
-const prodFormat = format.combine(format.timestamp(), format.errors({ stack: true }), format.json());
-
 export const logger: Logger = createLogger({
   level: env.logLevel,
-  format: isProduction ? prodFormat : devFormat,
+  format: lineFormat,
   defaultMeta: { service: "backend" },
   transports: [new transports.Console({ stderrLevels: ["error"] })],
   // Tests assert on responses, not on log output — keep the terminal readable.

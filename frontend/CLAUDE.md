@@ -106,7 +106,10 @@ Post-init edits that must survive regeneration:
 
 Everything goes through `lib/api.ts`: `NEXT_PUBLIC_API_URL` (default
 `http://localhost:4000`), `cache: "no-store"`. `NEXT_PUBLIC_*` is inlined at
-build time — changing it means a rebuild. Put it in `.env.local`.
+build time — changing it means a rebuild. Put it in `.env.local`. On the
+server a runtime `API_URL` takes precedence when set; the Docker stack uses it
+so server components reach `http://backend:4000` while the browser keeps the
+public URL. `next.config.ts` sets `output: "standalone"` for the image.
 
 ## Commands
 

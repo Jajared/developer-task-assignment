@@ -1,8 +1,17 @@
-# Postgres only — the backend and frontend run on the host with `bun dev`.
+# The whole stack: Postgres, the backend API and the Next.js frontend.
+# `bun run docker:up` builds and starts everything; `bun run docker:migrate`
+# applies migrations and seeds (run it once after the first `up` and after any
+# schema change); open http://localhost:3000. For host development run only `bun run db:up`
+# (Postgres) and `bun dev`.
 #
-# Credentials come from the repo-root `.env` (gitignored; copy `.env.example`).
-# `:?` means compose refuses to start rather than falling back to a default
-# password, so a missing variable can never boot a weakly-secured database.
+# Every variable comes from the repo-root `.env` (gitignored; copy
+# `.env.example`). `:?` means compose refuses to start rather than falling back
+# to a default password, so a missing variable can never boot a weakly-secured
+# database. DATABASE_URL is derived from the same POSTGRES_* values, so the two
+# can never disagree.
+x-database-url: &database-url
+  postgresql://${POSTGRES_USER:?set POSTGRES_USER in .env}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:?set POSTGRES_DB in .env}?schema=public
+
 services:
   postgres:
     image: postgres:18-alpine
@@ -22,6 +31,60 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    image: task-assignment-backend
+    container_name: task-assignment-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: *database-url
+      # Must match the origin the browser loads the frontend from.
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash}
+    ports:
+      - "${BACKEND_PORT:-4000}:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      # The image has no curl; Bun's fetch does the job.
+      test: ["CMD", "bun", "-e", "fetch('http://localhost:4000/health').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        # Inlined at build time: the URL the *browser* calls the API on.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
+    image: task-assignment-frontend
+    container_name: task-assignment-frontend
+    restart: unless-stopped
+    environment:
+      # Runtime, server-side only: server components reach the API over the
+      # compose network.
+      API_URL: http://backend:4000
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
 
 volumes:
   postgres-data:

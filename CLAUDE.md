@@ -1,8 +1,9 @@
 # task-assignment-app
 
 Bun workspace monorepo: `backend/` (Express 5 on Bun, Prisma 7, Postgres, port
-4000) and `frontend/` (Next.js 16 App Router, Tailwind 4, port 3000). Postgres
-runs in Docker; both apps run on the host. Per-app conventions live in
+4000) and `frontend/` (Next.js 16 App Router, Tailwind 4, port 3000). The whole
+stack runs in Docker (`bun run docker:up`); for development Postgres runs in
+Docker and both apps run on the host. Per-app conventions live in
 `backend/CLAUDE.md` and `frontend/CLAUDE.md`.
 
 ## Commands
@@ -12,7 +13,9 @@ itself — never add `dotenv`.
 
 ```sh
 bun install                        # postinstall regenerates the Prisma client
-bun run db:up                      # Postgres via docker compose (db:down, db:logs)
+bun run docker:up                  # whole stack via docker compose (docker:stop, docker:down, docker:logs)
+bun run docker:migrate             # REQUIRED after docker:up: migrate + seed inside the stack
+bun run db:up                      # Postgres only, for host dev (db:down, db:logs)
 bun --filter backend db:migrate    # Prisma migrate dev; db:seed, db:studio, db:reset
 bun dev                            # both apps; dev:backend / dev:frontend for one
 bun run typecheck                  # tsc --noEmit in both workspaces
@@ -21,7 +24,7 @@ bun run test                       # backend only; needs a running, seeded datab
 bun run build                      # prisma generate + bun build; next build
 ```
 
-`db:up`/`db:down` are root scripts (Docker). `db:migrate`/`db:seed`/`db:studio`
+`docker:*` and `db:up`/`db:down` are root scripts (Docker). `db:migrate`/`db:seed`/`db:studio`
 are backend scripts (Prisma) — run them with `bun --filter backend`. Use
 `bun run test`, not bare `bun test` from the root: the latter never loads
 `backend/.env`.
@@ -43,14 +46,25 @@ enforces, `frontend/lib/constants.ts` mirrors. Keep them equal.
 
 All `.env.example` files are committed; real `.env` files are gitignored.
 
-- **`.env` (root)** — `POSTGRES_USER/PASSWORD/DB/PORT`. Read only by
-  `docker-compose.yml`, which uses `${VAR:?}` so `db:up` fails loudly if it is
-  missing. Must agree with `DATABASE_URL` below; nothing checks that.
-- **`backend/.env`** — `DATABASE_URL` (required), `PORT`, `NODE_ENV`,
+- **`.env` (root)** — `POSTGRES_USER/PASSWORD/DB/PORT`, plus optional
+  `GEMINI_API_KEY`, `BACKEND_PORT`, `FRONTEND_PORT`, `NEXT_PUBLIC_API_URL`,
+  `CORS_ORIGINS` for the compose stack. Read only by `docker-compose.yml`,
+  which uses `${VAR:?}` so compose fails loudly if a Postgres var is missing,
+  and derives the containers' `DATABASE_URL` from them. For host dev it must
+  agree with `DATABASE_URL` below; nothing checks that.
+- **`backend/.env`** (host dev) — `DATABASE_URL` (required), `PORT`, `NODE_ENV`,
   `CORS_ORIGINS`, `LOG_LEVEL`, and optional `GEMINI_API_KEY` / `GEMINI_MODEL`
   for LLM inference of a task's required skills. Without a key, tasks created
   with no skills keep none.
-- **`frontend/.env.local`** — `NEXT_PUBLIC_API_URL`, inlined at build time.
+- **`frontend/.env.local`** (host dev) — `NEXT_PUBLIC_API_URL`, inlined at build
+  time (browser URL). In Docker the server-side URL is `API_URL`
+  (`http://backend:4000`), read at runtime in `frontend/lib/api.ts`.
+
+Docker: `backend/Dockerfile` (oven/bun, serves only; containers never migrate,
+`docker:migrate` runs `db:deploy` + `db:seed` in that image) and `frontend/Dockerfile` (Bun installs,
+`next build` runs under Node because Bun 1.3 segfaults on it in Linux;
+`output: "standalone"` served by node:22-slim). Both build with the repo root
+as context.
 
 Fresh checkout: `cp .env.example .env && cp backend/.env.example backend/.env`,
 then `bun install`, `bun run db:up`, `bun --filter backend db:migrate`,
