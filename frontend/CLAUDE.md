@@ -8,8 +8,11 @@ conventions, and the docs are vendored in `node_modules/next/dist/docs/`.
 
 Dependencies are `next`, `react`, `react-dom` plus shadcn/ui and what it
 pulls in (`radix-ui`, `class-variance-authority`, `cn`, `lucide-react`,
-`tw-animate-css`, `cmdk`, `sonner`). No data-fetching library, no form
-library, no `zod` — add one only if asked.
+`tw-animate-css`, `cmdk`, `sonner`), plus `react-hook-form` for form state.
+No data-fetching library and no `zod` — add one only if asked. Forms use
+`useForm` directly with inline `validate` rules (see
+`app/_components/create-task-panel.tsx`); `Controller` wraps the non-native
+inputs such as the shadcn `Select` and the skill toggle chips.
 
 ## Layout
 
@@ -17,22 +20,37 @@ library, no `zod` — add one only if asked.
 app/
   layout.tsx           # root layout, Geist fonts, metadata,
                        #   TooltipProvider + Toaster
-  page.tsx             # the task list — an async server component
+  page.tsx             # the task list — a server component that seeds
+                       #   the client shell (mock data for now)
+  _components/         # components private to this route (see below)
   globals.css          # tailwind + shadcn theme tokens (see below)
 components/
   ui/                  # shadcn/ui components — generated, ours to edit
 lib/
-  api.ts               # typed fetch client for the backend
+  api.ts               # typed fetch client for the backend (not wired yet)
+  mock-data.ts         # in-memory fixtures the page renders today
   types.ts             # the API contract, hand-maintained (see below)
   utils.ts             # re-exports `cn` (shadcn's clsx + tailwind-merge)
 components.json        # shadcn config: radix-nova style, neutral base
 next.config.ts         # sets turbopack.root to the repo root
 ```
 
-`page.tsx` fetches on the server. Keep it that way unless you actually need
-interactivity; add `"use client"` only on the component that needs it, not the
-page. The only client components in the tree are shadcn's own — including
-`TooltipProvider` and `Toaster` in the root layout (see **shadcn/ui**).
+This is a single-page app. Route-private components live in `_components/`
+next to the route (`app/_components/` for the only page today); the root
+`components/` directory is for shared pieces only, which so far means
+`components/ui/`.
+
+Render on the server wherever possible. `page.tsx` is a server component and
+stays one; add `"use client"` only on the component that actually needs state
+or handlers, not the page. `app/_components/task-manager.tsx` is the one
+client boundary — it owns task, filter and side-panel state — and static
+pieces like `backlog-heading.tsx` are server components passed into it as
+props. Helpers in `task-ui.ts` and presentational bits (`skill-badge`,
+`developer-avatar`, `side-panel`) have no directive so they work on either side.
+
+The backend is not wired in yet: `page.tsx` seeds the shell from
+`lib/mock-data.ts`. Its `UiTask` adds a `dueDate` the API doesn't have, and the
+statuses are the schema's three (`todo`, `in_progress`, `done`).
 
 ## types.ts is hand-maintained — this is the sharp edge
 
@@ -69,8 +87,8 @@ Currently installed: `alert-dialog`, `avatar`, `badge`, `button`, `card`,
 `label`, `popover`, `select`, `separator`, `sheet`, `skeleton`, `sonner`,
 `switch`, `table`, `tabs`, `textarea`, `tooltip`.
 
-Not installed on purpose: `form`, which needs `react-hook-form` and `zod` —
-see the dependency note above.
+Not installed on purpose: shadcn's `form` wrapper, which also wants `zod`.
+`react-hook-form` is used on its own — see the dependency note above.
 
 Two components need app-level wiring, and both are wired in
 `app/layout.tsx` — you do not need to add them again per page:
@@ -87,13 +105,10 @@ see the note at the top of this file.
 
 Two things about the theme were changed after `init` and must stay that way:
 
-- **Dark mode is the OS preference, not a `.dark` class.** `globals.css` sets
-  `@custom-variant dark (@media (prefers-color-scheme: dark))` and puts the
-  dark token block inside that same media query. `init` writes a class-based
-  variant instead, which silently disables every `dark:` utility in the app,
-  because nothing ever adds `.dark`. If a re-run of `init` or `add` rewrites
-  the variant, put this back. Adding a real theme toggle means switching the
-  variant and the token block to `.dark` together.
+- **Light mode only.** `globals.css` has no dark token block and no `dark`
+  custom variant, and `:root` sets `color-scheme: light`. Do not add `dark:`
+  utilities. If a re-run of `init` or `add` writes a dark block or variant
+  back, remove it.
 - **`--font-sans` points at `--font-geist-sans`**, the variable
   `app/layout.tsx` gets from `next/font`. `init` emits
   `--font-sans: var(--font-sans)`, which resolves to nothing.
@@ -104,7 +119,7 @@ Two things about the theme were changed after `init` and must stay that way:
 `components/ui/sonner.tsx` was edited to drop `next-themes`. Upstream reads
 the theme from a `ThemeProvider` this app does not have, where `useTheme()`
 just falls through to `"system"` anyway — which is what sonner now gets
-directly, and which reads `prefers-color-scheme` like everything else here. If
+directly. If
 `add` regenerates the file, re-apply that edit rather than installing
 `next-themes`.
 
@@ -127,8 +142,8 @@ backend is a separate process that may simply be down.
 - Path alias `@/*` maps to the app root (`@/lib/api`). Imports here omit file
   extensions — unlike the backend, which uses explicit `.ts`.
 - Tailwind utilities only; no CSS modules or styled-components. Colors go
-  through the `@theme inline` tokens in `globals.css`, and every surface needs
-  a `dark:` variant — the existing page has them throughout.
+  through the `@theme inline` tokens in `globals.css`. The app is light mode
+  only, so no `dark:` variants.
 - `bun run lint` (eslint, flat config) and `bun run typecheck` both pass. Keep
   them passing.
 
