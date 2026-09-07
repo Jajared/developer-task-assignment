@@ -1,12 +1,13 @@
 import { Router } from "express";
 
 import * as controller from "./tasks.controller.ts";
-import { validateCreateTask, validateUpdateTask } from "./tasks.validator.ts";
 
 export const tasksRouter = Router();
 
-tasksRouter.get("/", controller.listTasks);
+tasksRouter.get("/", controller.getTasks);
 tasksRouter.get("/:id", controller.getTask);
-tasksRouter.post("/", validateCreateTask, controller.createTask);
-tasksRouter.patch("/:id", validateUpdateTask, controller.updateTask);
+tasksRouter.post("/", controller.createTask);
+// The narrow route comes first: /:id/status must not be swallowed by /:id.
+tasksRouter.patch("/:id/status", controller.updateTaskStatus);
+tasksRouter.patch("/:id", controller.updateTask);
 tasksRouter.delete("/:id", controller.deleteTask);

@@ -1,48 +1,82 @@
-import type { RequestHandler } from "express";
+import type { NextFunction, Request, Response } from "express";
 
-import { taskService } from "./tasks.service.ts";
-
-/** Routes with an `:id` segment. */
-type IdParams = { id: string };
+import { log, logVerbose } from "../../lib/log.ts";
+import * as taskService from "./tasks.service.ts";
+import * as taskValidator from "./tasks.validator.ts";
 
 /**
- * HTTP layer for tasks: reads the request, calls the service, shapes the
- * response. Bodies arriving here are already validated by tasks.validator.ts.
- *
- * Express 5 forwards a rejected promise to the error handler on its own, so
- * these handlers can throw and let app.ts turn it into a 500.
+ * HTTP layer for tasks: validates the request, calls the service, shapes the
+ * response. Only the success path is written here — the service throws an
+ * `HttpError` for anything it can't do, `next` forwards it, and the handler in
+ * app.ts sends it at the status the error carries.
  */
 
-export const listTasks: RequestHandler = async (_req, res) => {
-  res.json({ tasks: await taskService.list() });
-};
-
-export const getTask: RequestHandler<IdParams> = async (req, res) => {
-  const task = await taskService.findById(req.params.id);
-  if (!task) {
-    res.status(404).json({ error: "Task not found" });
-    return;
+async function getTasks(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  log("Get all tasks");
+  try {
+    const tasks = await taskService.listTasks();
+    res.status(200).json({ tasks });
+  } catch (error) {
+    next(error);
   }
-  res.json({ task });
-};
+}
 
-export const createTask: RequestHandler = async (req, res) => {
-  res.status(201).json({ task: await taskService.create(req.body) });
-};
-
-export const updateTask: RequestHandler<IdParams> = async (req, res) => {
-  const task = await taskService.update(req.params.id, req.body);
-  if (!task) {
-    res.status(404).json({ error: "Task not found" });
-    return;
+async function getTask(req: Request, res: Response, next: NextFunction): Promise<void> {
+  log(`Get task taskId[${req.params.id}]`);
+  try {
+    const { id } = taskValidator.validateTaskId(req.params);
+    const task = await taskService.findTaskById(id);
+    res.status(200).json({ task });
+  } catch (error) {
+    next(error);
   }
-  res.json({ task });
-};
+}
 
-export const deleteTask: RequestHandler<IdParams> = async (req, res) => {
-  if (!(await taskService.remove(req.params.id))) {
-    res.status(404).json({ error: "Task not found" });
-    return;
+async function createTask(req: Request, res: Response, next: NextFunction): Promise<void> {
+  logVerbose("Create task", req.body);
+  try {
+    const payload = taskValidator.validateCreateTask(req.body);
+    const task = await taskService.createTask(payload);
+    res.status(201).json({ task });
+  } catch (error) {
+    next(error);
   }
-  res.status(204).end();
-};
+}
+
+async function updateTask(req: Request, res: Response, next: NextFunction): Promise<void> {
+  logVerbose(`Update task taskId[${req.params.id}]`, req.body);
+  try {
+    const { id } = taskValidator.validateTaskId(req.params);
+    const payload = taskValidator.validateUpdateTask(req.body);
+    const task = await taskService.updateTask(id, payload);
+    res.status(200).json({ task });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/** Status-only update, so a board drag can't smuggle in an assignee change. */
+async function updateTaskStatus(req: Request, res: Response, next: NextFunction): Promise<void> {
+  logVerbose(`Update task status taskId[${req.params.id}]`, req.body);
+  try {
+    const { id } = taskValidator.validateTaskId(req.params);
+    const { status } = taskValidator.validateUpdateTaskStatus(req.body);
+    const task = await taskService.updateTask(id, { status });
+    res.status(200).json({ task });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function deleteTask(req: Request, res: Response, next: NextFunction): Promise<void> {
+  log(`Delete task taskId[${req.params.id}]`);
+  try {
+    const { id } = taskValidator.validateTaskId(req.params);
+    await taskService.deleteTask(id);
+    res.status(204).end();
+  } catch (error) {
+    next(error);
+  }
+}
+
+export { getTasks, getTask, createTask, updateTask, updateTaskStatus, deleteTask };

@@ -1,46 +1,67 @@
-import type { RequestHandler } from "express";
-import { z, type ZodType } from "zod";
+import { z } from "zod";
 
 import { TaskPriority, TaskStatus } from "../../generated/prisma/enums.ts";
+import { parseOrThrow } from "../../lib/validate.ts";
 
 /**
- * Request shapes for the task routes, and the middleware that enforces them.
- * The allowed values come from the Prisma schema's enums, so the API rejects
- * anything the database column would.
+ * Request shapes for the task routes. The allowed values come from the Prisma
+ * schema's enums, so the API rejects anything the database column would.
+ *
+ * Relations are written by id: `assigneeId` names a developer, and
+ * `requiredSkillIds` replaces the task's whole required-skill set. Whether
+ * that pairing is *allowed* is a rule, not a shape — tasks.service.ts owns it.
  */
 
-export const createTaskSchema = z.object({
-  title: z.string().min(1).max(200),
-  description: z.string().max(2000).nullish(),
-  status: z.nativeEnum(TaskStatus).default(TaskStatus.todo),
-  priority: z.nativeEnum(TaskPriority).default(TaskPriority.medium),
-  assignee: z.string().min(1).max(100).nullish(),
+const createTaskSchema = z.object({
+  title: z
+    .string({ message: "Title is required" })
+    .trim()
+    .min(1, "Title is required")
+    .max(200, "Title must be at most 200 characters"),
+  description: z
+    .string()
+    .trim()
+    .max(2000, "Description must be at most 2000 characters")
+    .nullish(),
+  status: z
+    .nativeEnum(TaskStatus, { message: "Status must be todo, in_progress or done" })
+    .default(TaskStatus.todo),
+  priority: z
+    .nativeEnum(TaskPriority, { message: "Priority must be low, medium or high" })
+    .default(TaskPriority.medium),
+  assigneeId: z.string().uuid("Assignee must be a developer id").nullish(),
+  requiredSkillIds: z
+    .array(z.string().uuid("Required skills must be skill ids"))
+    .default([]),
 });
 
 /** Every field optional, for PATCH. */
-export const updateTaskSchema = createTaskSchema.partial();
+const updateTaskSchema = createTaskSchema.partial();
 
-export type CreateTaskBody = z.output<typeof createTaskSchema>;
-export type UpdateTaskBody = z.output<typeof updateTaskSchema>;
+/** Body for the dedicated status route, where only the status may change. */
+const updateTaskStatusSchema = z.object({
+  status: z.nativeEnum(TaskStatus, { message: "Status must be todo, in_progress or done" }),
+});
 
-/**
- * Replaces `req.body` with the parsed result, so the controller receives
- * defaults applied and types narrowed.
- */
-function validateBody(schema: ZodType): RequestHandler {
-  return (req, res, next) => {
-    const parsed = schema.safeParse(req.body);
+export type TCreateTask = z.infer<typeof createTaskSchema>;
+export type TUpdateTask = z.infer<typeof updateTaskSchema>;
+export type TUpdateTaskStatus = z.infer<typeof updateTaskStatusSchema>;
 
-    if (!parsed.success) {
-      res.status(422).json({ error: "Validation failed", details: parsed.error.flatten() });
-      return;
-    }
+/** Route params for the routes with an `:id` segment. */
+const taskIdSchema = z.object({
+  id: z.string().uuid("Task id must be a uuid"),
+});
 
-    req.body = parsed.data;
-    next();
-  };
-}
+export type TTaskId = z.infer<typeof taskIdSchema>;
 
-export const validateCreateTask = validateBody(createTaskSchema);
+export const validateTaskId = (payload: unknown): TTaskId =>
+  parseOrThrow(taskIdSchema, payload, "Invalid task id.");
 
-export const validateUpdateTask = validateBody(updateTaskSchema);
+export const validateCreateTask = (payload: unknown): TCreateTask =>
+  parseOrThrow(createTaskSchema, payload, "Invalid payload to create task.");
+
+export const validateUpdateTask = (payload: unknown): TUpdateTask =>
+  parseOrThrow(updateTaskSchema, payload, "Invalid payload to update task.");
+
+export const validateUpdateTaskStatus = (payload: unknown): TUpdateTaskStatus =>
+  parseOrThrow(updateTaskStatusSchema, payload, "Invalid payload to update task status.");
