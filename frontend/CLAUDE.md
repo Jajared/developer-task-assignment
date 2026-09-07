@@ -6,25 +6,33 @@ Next.js 16.3.4 App Router, React 19.2, Tailwind 4, TypeScript. Runs on :3000.
 Read `AGENTS.md` first — this Next version has breaking changes from older
 conventions, and the docs are vendored in `node_modules/next/dist/docs/`.
 
-Dependencies are only `next`, `react`, `react-dom`. No data-fetching library,
-no component library, no form library, no `zod` — add one only if asked.
+Dependencies are `next`, `react`, `react-dom` plus shadcn/ui and what it
+pulls in (`radix-ui`, `class-variance-authority`, `cn`, `lucide-react`,
+`tw-animate-css`, `cmdk`, `sonner`). No data-fetching library, no form
+library, no `zod` — add one only if asked.
 
 ## Layout
 
 ```
 app/
-  layout.tsx           # root layout, Geist fonts, metadata
+  layout.tsx           # root layout, Geist fonts, metadata,
+                       #   TooltipProvider + Toaster
   page.tsx             # the task list — an async server component
-  globals.css          # @import "tailwindcss" + @theme inline tokens
+  globals.css          # tailwind + shadcn theme tokens (see below)
+components/
+  ui/                  # shadcn/ui components — generated, ours to edit
 lib/
   api.ts               # typed fetch client for the backend
   types.ts             # the API contract, hand-maintained (see below)
+  utils.ts             # re-exports `cn` (shadcn's clsx + tailwind-merge)
+components.json        # shadcn config: radix-nova style, neutral base
 next.config.ts         # sets turbopack.root to the repo root
 ```
 
-There are no client components yet — `page.tsx` fetches on the server. Keep it
-that way unless you actually need interactivity; add `"use client"` only on the
-component that needs it, not the page.
+`page.tsx` fetches on the server. Keep it that way unless you actually need
+interactivity; add `"use client"` only on the component that needs it, not the
+page. The only client components in the tree are shadcn's own — including
+`TooltipProvider` and `Toaster` in the root layout (see **shadcn/ui**).
 
 ## types.ts is hand-maintained — this is the sharp edge
 
@@ -40,6 +48,65 @@ task-shaped, diff it against `backend/src/services/tasks/tasks.types.ts`.
 Enum values are the DB's lowercase strings (`"in_progress"`), exposed as const
 objects with PascalCase keys (`TaskStatus.InProgress`) — the keys differ from
 the backend's generated enums, the values do not.
+
+## shadcn/ui
+
+Components are generated into `components/ui/` and are **ours to edit** — they
+are copied source, not a dependency. Add more with:
+
+```sh
+bunx --bun shadcn@latest add dialog table badge
+```
+
+Run it from this directory (`components.json` lives here, not at the repo
+root). It builds on Radix primitives via the single `radix-ui` package, so
+imports look like `import { Slot } from "radix-ui"`, not
+`@radix-ui/react-slot`. `cn` comes from `cn`, shadcn's own compiled
+clsx + tailwind-merge replacement, re-exported by `lib/utils.ts`.
+
+Currently installed: `alert-dialog`, `avatar`, `badge`, `button`, `card`,
+`checkbox`, `command`, `dialog`, `dropdown-menu`, `input`, `input-group`,
+`label`, `popover`, `select`, `separator`, `sheet`, `skeleton`, `sonner`,
+`switch`, `table`, `tabs`, `textarea`, `tooltip`.
+
+Not installed on purpose: `form`, which needs `react-hook-form` and `zod` —
+see the dependency note above.
+
+Two components need app-level wiring, and both are wired in
+`app/layout.tsx` — you do not need to add them again per page:
+
+- **`TooltipProvider`** wraps `{children}`. `Tooltip` is not self-wrapping and
+  throws without a provider ancestor.
+- **`Toaster`** (sonner) is rendered once, as a sibling of `{children}`.
+  `toast()` calls do nothing without it.
+
+Both are client components, so the root layout imports client code. That does
+**not** make pages client components: `children` is rendered on the server and
+passed through as already-rendered elements. Keep `"use client"` off pages —
+see the note at the top of this file.
+
+Two things about the theme were changed after `init` and must stay that way:
+
+- **Dark mode is the OS preference, not a `.dark` class.** `globals.css` sets
+  `@custom-variant dark (@media (prefers-color-scheme: dark))` and puts the
+  dark token block inside that same media query. `init` writes a class-based
+  variant instead, which silently disables every `dark:` utility in the app,
+  because nothing ever adds `.dark`. If a re-run of `init` or `add` rewrites
+  the variant, put this back. Adding a real theme toggle means switching the
+  variant and the token block to `.dark` together.
+- **`--font-sans` points at `--font-geist-sans`**, the variable
+  `app/layout.tsx` gets from `next/font`. `init` emits
+  `--font-sans: var(--font-sans)`, which resolves to nothing.
+
+`shadcn` itself is a devDependency: `globals.css` imports
+`shadcn/tailwind.css`, resolved at build time.
+
+`components/ui/sonner.tsx` was edited to drop `next-themes`. Upstream reads
+the theme from a `ThemeProvider` this app does not have, where `useTheme()`
+just falls through to `"system"` anyway — which is what sonner now gets
+directly, and which reads `prefers-color-scheme` like everything else here. If
+`add` regenerates the file, re-apply that edit rather than installing
+`next-themes`.
 
 ## Talking to the backend
 
