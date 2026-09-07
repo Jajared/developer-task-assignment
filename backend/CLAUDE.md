@@ -161,6 +161,24 @@ response names what's missing:
 Nothing in the database enforces this — the join tables are independent — so
 any new write path has to run the same check.
 
+**The other 409 is the completion rule.** A task may only be `done` once every
+one of its direct subtasks is `done`; `assertCompletable()` in
+`tasks.service.ts` enforces it on the status route and on create (a body whose
+task is `done` over an open subtask is refused the same way). The response
+names what's still open:
+
+```json
+{
+  "error": "All subtasks must be done before this task can be marked done",
+  "details": { "unfinishedSubtasks": [{ "id": "…", "title": "…", "status": "todo" }] }
+}
+```
+
+The rule also runs backwards: moving a `done` task back to open reopens every
+`done` ancestor above it to `in_progress`, in the same transaction, so a parent
+is never left `done` over open work. The client only gets the row it changed
+back — it should refetch the list to see the ancestors move.
+
 ## Database workflow
 
 After editing `db/schema.prisma`:
@@ -183,14 +201,23 @@ response (`curl localhost:4000/api/tasks`), not against a type.
 GET    /health
 GET    /api/tasks                 list, newest first
 GET    /api/tasks/:id
-POST   /api/tasks                 201
+POST   /api/tasks                 201; body may nest `subtasks`, written in one transaction
 PATCH  /api/tasks/:id             assignment only: { assigneeId } (null unassigns); rule applies
-PATCH  /api/tasks/:id/status      status only — registered BEFORE /:id
+PATCH  /api/tasks/:id/status      status only — registered BEFORE /:id; completion rule applies
 GET    /api/developers            each with their skills
 GET    /api/developers/:id
 GET    /api/skills
 GET    /api/skills/:id
 ```
+
+**Subtasks.** `Task.parentId` is a nullable self-reference (`onDelete:
+Cascade`); a subtask is an ordinary task row with every property a task has,
+nested to any depth. The list stays flat — every row carries `parentId` and
+the client builds the tree — and no response nests `subtasks`. Subtasks are
+created only inline: the create body accepts `subtasks: [...]`, each entry the
+same shape with its own `subtasks`, and the whole tree is written in one
+transaction after both rules have been checked for every node. There is no
+route to attach a subtask to an existing task or to set `parentId` directly.
 
 A task's title, description, priority, due date and required skills are set
 once, at creation. After that only two things change: the assignee

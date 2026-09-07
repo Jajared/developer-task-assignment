@@ -10,9 +10,15 @@ import { parseOrThrow } from "@/lib/validate.ts";
  * Relations are written by id: `assigneeId` names a developer, and
  * `requiredSkillIds` (create only) is the task's required-skill set. Whether
  * that pairing is *allowed* is a rule, not a shape — tasks.service.ts owns it.
+ *
+ * A create body may carry `subtasks`, each with exactly the same shape and
+ * their own `subtasks` in turn — nesting is unbounded. The recursion is what
+ * makes the schema self-referential, so its type is declared by hand below
+ * and `z.lazy` closes the loop.
  */
 
-const createTaskSchema = z.object({
+/** The fields every task has, subtasks included, before recursion is added. */
+const taskFieldsSchema = z.object({
   title: z
     .string({ message: "Title is required" })
     .trim()
@@ -42,6 +48,21 @@ const createTaskSchema = z.object({
     .transform((value) => (value == null ? value : new Date(`${value}T00:00:00.000Z`))),
 });
 
+type TTaskFieldsInput = z.input<typeof taskFieldsSchema>;
+type TTaskFields = z.output<typeof taskFieldsSchema>;
+
+/** What the client sends: `subtasks` is optional at every level. */
+type TCreateTaskInput = TTaskFieldsInput & { subtasks?: TCreateTaskInput[] };
+/** What the service receives: `subtasks` is always an array, defaults applied. */
+export type TCreateTask = TTaskFields & { subtasks: TCreateTask[] };
+
+const createTaskSchema: z.ZodType<TCreateTask, z.ZodTypeDef, TCreateTaskInput> =
+  taskFieldsSchema.extend({
+    subtasks: z.lazy(() =>
+      z.array(createTaskSchema, { message: "Subtasks must be a list of tasks" }).default([]),
+    ),
+  });
+
 /**
  * Body for `PATCH /api/tasks/:id`. Assignment is the only thing that route
  * changes: null unassigns. Everything else about a task is fixed at creation,
@@ -59,7 +80,6 @@ const updateTaskStatusSchema = z.object({
   status: z.nativeEnum(TaskStatus, { message: "Status must be todo, in_progress or done" }),
 });
 
-export type TCreateTask = z.infer<typeof createTaskSchema>;
 export type TUpdateTask = z.infer<typeof updateTaskSchema>;
 export type TUpdateTaskStatus = z.infer<typeof updateTaskStatusSchema>;
 

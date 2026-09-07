@@ -65,10 +65,19 @@ model Task {
   requiredSkills Skill[]
   /// Calendar date the task is due, or null. A date, not a timestamp.
   dueDate        DateTime?    @db.Date
+  /// Parent task, or null for a top-level task. A subtask has every property a
+  /// task has; deleting a parent removes its subtasks. Nesting is unbounded.
+  parentId       String?      @db.Uuid
+  parent         Task?        @relation("TaskSubtasks", fields: [parentId], references: [id], onDelete: Cascade)
+  /// Direct subtasks. A task may only be `done` once all of these are —
+  /// enforced in tasks.service.ts, not by the database.
+  subtasks       Task[]       @relation("TaskSubtasks")
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
-  // Task lists are read newest-first and filtered by assignee.
+  // Task lists are read newest-first and filtered by assignee; subtasks are
+  // looked up by parent.
   @@index([createdAt])
   @@index([assigneeId])
+  @@index([parentId])
 }

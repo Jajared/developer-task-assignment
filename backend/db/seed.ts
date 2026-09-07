@@ -26,18 +26,44 @@ const DEVELOPERS: { name: string; skills: SkillName[] }[] = [
  * hand — note that Carol is the only developer eligible for the task that
  * needs both skills.
  */
-const TASKS: {
+type SeedTask = {
   title: string;
   status: TaskStatus;
   requiredSkills: SkillName[];
   assignee: string | null;
-}[] = [
+  /** Nested subtasks, created under the task. A done task's must all be done. */
+  subtasks?: SeedTask[];
+};
+
+const TASKS: SeedTask[] = [
   {
     title:
       "As a visitor, I want to see a responsive homepage so that I can easily navigate on both desktop and mobile devices.",
     status: TaskStatus.in_progress,
     requiredSkills: ["Frontend"],
     assignee: "Alice",
+    subtasks: [
+      {
+        title: "Build the desktop layout",
+        status: TaskStatus.done,
+        requiredSkills: ["Frontend"],
+        assignee: "Alice",
+      },
+      {
+        title: "Adapt the layout for mobile",
+        status: TaskStatus.todo,
+        requiredSkills: ["Frontend"],
+        assignee: "Alice",
+        subtasks: [
+          {
+            title: "Collapse the navigation into a menu",
+            status: TaskStatus.todo,
+            requiredSkills: ["Frontend"],
+            assignee: null,
+          },
+        ],
+      },
+    ],
   },
   {
     title: "Expose the task API over HTTP",
@@ -103,21 +129,27 @@ if (taskCount > 0) {
     (await prisma.developer.findMany()).map((developer) => [developer.name, developer.id]),
   );
 
-  await Promise.all(
-    TASKS.map((task) =>
-      prisma.task.create({
-        data: {
-          title: task.title,
-          status: task.status,
-          assigneeId: task.assignee ? developers.get(task.assignee) : null,
-          requiredSkills: {
-            connect: task.requiredSkills.map((name) => ({ id: skills.get(name) })),
-          },
+  // Subtasks need their parent's id, so each tree is written depth-first.
+  let created = 0;
+  const createTree = async (task: SeedTask, parentId: string | null): Promise<void> => {
+    const row = await prisma.task.create({
+      data: {
+        title: task.title,
+        status: task.status,
+        assigneeId: task.assignee ? developers.get(task.assignee) : null,
+        parentId,
+        requiredSkills: {
+          connect: task.requiredSkills.map((name) => ({ id: skills.get(name) })),
         },
-      }),
-    ),
-  );
-  console.log(`seeded ${TASKS.length} tasks`);
+      },
+      select: { id: true },
+    });
+    created += 1;
+    for (const subtask of task.subtasks ?? []) await createTree(subtask, row.id);
+  };
+
+  await Promise.all(TASKS.map((task) => createTree(task, null)));
+  console.log(`seeded ${created} tasks (${TASKS.length} top-level)`);
 }
 
 await prisma.$disconnect();
