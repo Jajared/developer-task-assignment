@@ -94,13 +94,18 @@ export function CreateTaskPanel({
           <Separator />
 
           <div className="flex flex-col gap-3">
-            <div className="flex items-baseline justify-between gap-3">
-              <span className="text-[13px] font-semibold">Subtasks</span>
-              <span className="text-right text-xs text-muted-foreground">
-                {subtaskCount === 0
-                  ? "Optional. Subtasks can have subtasks of their own."
-                  : `${subtaskCount} in total`}
-              </span>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[13px] font-semibold">Subtasks</span>
+                <span className="text-xs text-muted-foreground">
+                  Optional. Subtasks can have subtasks of their own.
+                </span>
+              </div>
+              {subtaskCount > 0 ? (
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  {subtaskCount} in total
+                </span>
+              ) : null}
             </div>
             <SubtaskList path="" skills={skills} developers={developers} />
           </div>

@@ -111,6 +111,13 @@ the form is wrapped in `FormProvider` so nested pieces use `useFormContext()`:
 `toCreateInput()` in `task-manager.tsx` maps the tree to `CreateTaskInput`,
 whose `subtasks` is the same shape recursively.
 
+The detail panel (`task-detail-panel.tsx`) shows the tree around a task, after
+the attribute grid and before the description: a **Parent task** section when
+`parentId` is set, then **Subtasks**. Both render `TaskCard`
+(`task-card.tsx`) — assignee avatar, title, assignee name, status badge —
+which opens the task on click, so parent and children read as the same kind
+of thing.
+
 Skills and developers are read-only reference data from the API; the create
 form offers the seeded skill pool and has no way to add to it.
 

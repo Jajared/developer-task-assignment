@@ -1,6 +1,5 @@
 "use client";
 
-import { CornerDownRightIcon, CornerLeftUpIcon } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,12 +19,11 @@ import { cn } from "@/lib/utils";
 import { DeveloperAvatar } from "./developer-avatar";
 import { SidePanel } from "@/components/ui/side-panel";
 import { SkillBadge } from "./skill-badge";
+import { TaskCard } from "./task-card";
 import { AssigneeSelect, StatusSelect } from "./task-selects";
 import {
   PRIORITY_LABEL,
   PRIORITY_STYLE,
-  STATUS_LABEL,
-  STATUS_STYLE,
   childrenOf,
   formatDate,
   hasUnfinishedSubtasks,
@@ -103,26 +101,14 @@ export function TaskDetailPanel({
       }
     >
       <div className="flex flex-col gap-7 px-6 py-6">
-        <div className="flex flex-col gap-2">
-          {parent ? (
-            <button
-              type="button"
-              onClick={() => onOpen(parent.id)}
-              className="flex min-w-0 items-center gap-1.5 self-start text-[13px] text-muted-foreground hover:text-foreground hover:underline"
-            >
-              <CornerLeftUpIcon className="size-3.5 shrink-0" />
-              <span className="truncate">Subtask of {parent.title}</span>
-            </button>
-          ) : null}
-          <h2
-            className={cn(
-              "text-xl font-bold",
-              done && "text-muted-foreground line-through",
-            )}
-          >
-            {task.title}
-          </h2>
-        </div>
+        <h2
+          className={cn(
+            "text-xl font-bold",
+            done && "text-muted-foreground line-through",
+          )}
+        >
+          {task.title}
+        </h2>
 
         <div className="grid grid-cols-[110px_1fr] items-center gap-x-3 gap-y-5">
           <span className={fieldLabel}>Assignee</span>
@@ -159,6 +145,7 @@ export function TaskDetailPanel({
           <span className={fieldLabel}>Created</span>
           <span className="text-[13px]">{formatDate(task.createdAt)}</span>
 
+
           <span className={cn(fieldLabel, "self-start pt-1")}>Skills</span>
           <div className="flex flex-wrap gap-1.5">
             {task.requiredSkills.map((s) => (
@@ -167,6 +154,31 @@ export function TaskDetailPanel({
           </div>
         </div>
 
+        {parent ? (
+          <div className="flex flex-col gap-2">
+            <span className="text-[13px] font-semibold">Parent task</span>
+            <TaskCard task={parent} developers={developers} onOpen={onOpen} />
+          </div>
+        ) : null}
+
+        {subtasks.length > 0 ? (
+          <div className="flex flex-col gap-2">
+            <div className="flex items-baseline justify-between">
+              <span className="text-[13px] font-semibold">Subtasks</span>
+              <span className="text-xs text-muted-foreground">
+                {subtasks.filter((t) => t.status === TaskStatus.Done).length}{" "}
+                of {subtasks.length} done
+              </span>
+            </div>
+            <ul className="flex flex-col gap-2">
+              {subtasks.map((sub) => (
+                <li key={sub.id}>
+                  <TaskCard task={sub} developers={developers} onOpen={onOpen} />
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
         <div className="flex flex-col gap-1.5">
           <span className="text-[13px] font-semibold">Description</span>
           <p
@@ -178,51 +190,6 @@ export function TaskDetailPanel({
             {task.description || "No description."}
           </p>
         </div>
-
-        {subtasks.length > 0 ? (
-          <div className="flex flex-col gap-2">
-            <div className="flex items-baseline justify-between">
-              <span className="text-[13px] font-semibold">Subtasks</span>
-              <span className="text-xs text-muted-foreground">
-                {subtasks.filter((t) => t.status === TaskStatus.Done).length}{" "}
-                of {subtasks.length} done
-              </span>
-            </div>
-            <ul className="flex flex-col divide-y rounded-lg border">
-              {subtasks.map((sub) => {
-                const subDone = sub.status === TaskStatus.Done;
-                return (
-                  <li key={sub.id}>
-                    <button
-                      type="button"
-                      onClick={() => onOpen(sub.id)}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-muted"
-                    >
-                      <CornerDownRightIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                      <span
-                        className={cn(
-                          "min-w-0 flex-1 truncate text-sm",
-                          subDone && "text-muted-foreground line-through",
-                        )}
-                      >
-                        {sub.title}
-                      </span>
-                      <Badge
-                        variant="secondary"
-                        className={cn(
-                          "shrink-0 border-transparent",
-                          STATUS_STYLE[sub.status],
-                        )}
-                      >
-                        {STATUS_LABEL[sub.status]}
-                      </Badge>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ) : null}
       </div>
     </SidePanel>
   );

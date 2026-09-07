@@ -86,7 +86,6 @@ export function TaskManager({ heading, showDescriptions = true }: Props) {
         ? !t.assigneeId
         : t.status === url.filter,
   );
-  const unassignedCount = tasks.filter((t) => !t.assigneeId).length;
   const selected = url.openTaskId
     ? (tasks.find((t) => t.id === url.openTaskId) ?? null)
     : null;
@@ -179,8 +178,7 @@ export function TaskManager({ heading, showDescriptions = true }: Props) {
             })}
           </div>
           <span className="text-[13px] text-muted-foreground">
-            {visible.length} of {tasks.length} tasks · {unassignedCount}{" "}
-            unassigned
+            Showing {visible.length} {visible.length === 1 ? "task" : "tasks"}
           </span>
         </div>
 
