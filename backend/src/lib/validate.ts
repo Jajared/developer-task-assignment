@@ -1,10 +1,10 @@
 import type { z, ZodTypeAny } from "zod";
 
-import { HttpError } from "./http-error.ts";
+import { UnprocessableEntity } from "http-errors";
 
 /**
  * Parses a payload against a schema or throws. One place turns a `ZodError`
- * into an `HttpError`, so every validator stays a single expression and the
+ * into an `http-errors` 422, so every validator stays a single expression and the
  * field errors always reach the client the same way.
  *
  * 422, not 400 — the body parsed as JSON, it just failed the schema.
@@ -17,9 +17,7 @@ export function parseOrThrow<TSchema extends ZodTypeAny>(
   const parsed = schema.safeParse(payload);
 
   if (!parsed.success) {
-    throw new HttpError({
-      message,
-      status: 422,
+    throw Object.assign(new UnprocessableEntity(message), {
       details: parsed.error.flatten(),
       cause: parsed.error,
     });

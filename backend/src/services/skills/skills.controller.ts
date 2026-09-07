@@ -6,7 +6,7 @@ import * as skillValidator from "./skills.validator.ts";
 /**
  * HTTP layer for skills: validates the request, calls the service, shapes the
  * response. Only the success path is written here — the service throws an
- * `HttpError` for a missing row, and the handler in app.ts sends it.
+ * an `http-errors` error for a missing row, and the handler in app.ts sends it.
  */
 
 async function getSkills(req: Request, res: Response, next: NextFunction): Promise<void> {

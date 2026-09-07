@@ -1,7 +1,7 @@
 # backend
 
 Express 5 on the Bun runtime, Prisma 7 over Postgres. Deps: `express`, `cors`,
-`zod`, `winston`, `@prisma/client`, `@prisma/adapter-pg`.
+`zod`, `winston`, `http-errors`, `@prisma/client`, `@prisma/adapter-pg`.
 
 ## Layout
 
@@ -17,8 +17,7 @@ src/
   db/prisma.ts         # PrismaClient singleton, cached on globalThis for --watch
   generated/prisma/    # generated client — GITIGNORED, never edit, never commit
   lib/env.ts           # every process.env read, parsed once with a Zod schema; boot fails naming any bad variable
-  lib/http-error.ts    # HttpError: an error that carries its HTTP status
-  lib/validate.ts      # parseOrThrow(): ZodError → 422 HttpError
+  lib/validate.ts      # parseOrThrow(): ZodError → 422 via http-errors
   lib/log.ts           # Winston `logger` + describeError(); pretty in dev, JSON in prod
   lib/request-logger.ts # first middleware: request id, req.log child logger, access line
   lib/llm.ts           # generateStructured(): Gemini + Zod structured output; knows no domain
@@ -105,10 +104,15 @@ These cost real time if you don't know them:
   ```
 
   Declare the handlers, then export them in one block at the bottom.
-- **Throw `HttpError` to choose a status from anywhere** — validator, service,
-  controller. The error handler in `index.ts` sends `{ error, details }` at
-  `err.status`; anything else is a bug and becomes a 500. Never throw it for
-  one.
+- **Throw an `http-errors` error to choose a status from anywhere** —
+  validator, service, controller. Use the named constructors, never a bare
+  number: `new NotFound("Task not found")`, `new UnprocessableEntity(...)`,
+  `new Conflict(...)`. They take only a message, so attach machine-readable
+  context with `Object.assign(new Conflict(message), { details })`.
+  The error handler in `index.ts` sends `{ error, details }` at `err.status`
+  for anything `isHttpError()` with `expose` true (every 4xx, including the
+  400 body-parser raises for bad JSON); anything else is a bug and becomes a
+  500. Never throw a 4xx for one.
 - **Prisma rows are returned as-is.** No DTO, no mapping step. `res.json()`
   calls `Date.prototype.toJSON`, so every timestamp reaches the client as an
   ISO string with nothing in between — the *types* say `Date`, the wire says
@@ -119,7 +123,7 @@ These cost real time if you don't know them:
   to `schema.prisma` and it appears in the API immediately, so there's nowhere
   to hide a field that shouldn't be public.
 - **Services throw, they don't return failures.** A service function returns
-  the thing or throws an `HttpError` — no `undefined`-for-not-found, no result
+  the thing or throws an `http-errors` error — no `undefined`-for-not-found, no result
   union, and no mapping helper in the controller.
 - **Services take an `id: string` and trust it.** There is no uuid guard in the
   service layer: `validateTaskId(req.params)` runs first in every handler that
@@ -135,7 +139,7 @@ These cost real time if you don't know them:
   res.status(200).json({ task });
   ```
 - **Imports carry the `.ts` extension.** Anything outside the current folder
-  uses the `@/` alias, which maps to `src/` (`@/lib/http-error.ts`,
+  uses the `@/` alias, which maps to `src/` (`@/lib/validate.ts`,
   `@/generated/prisma/enums.ts`); sibling files stay relative
   (`./tasks.service.ts`). The alias is declared in `tsconfig.json` `paths` and
   Bun honours it at runtime and in `bun build`, so there is no extra tooling.

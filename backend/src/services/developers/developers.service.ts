@@ -1,12 +1,12 @@
 import { prisma } from "@/db/prisma.ts";
-import { HttpError } from "@/lib/http-error.ts";
+import { NotFound } from "http-errors";
 
 /**
  * Developers are read-only over the API — they're created by the seed. Tasks
  * reference them, and `tasks.service.ts` reads their skills to decide whether
  * an assignment is allowed.
  *
- * A missing developer throws an `HttpError` carrying its 404, so the
+ * A missing developer throws an `http-errors` 404, so the
  * controller only writes the success path.
  *
  * The controller imports this module as a namespace (`* as developerService`).
@@ -24,7 +24,7 @@ export async function findDeveloperById(id: string) {
     where: { id },
     include: { skills: { orderBy: { name: "asc" } } },
   });
-  if (!row) throw new HttpError({ message: "Developer not found", status: 404 });
+  if (!row) throw new NotFound("Developer not found");
 
   return row;
 }

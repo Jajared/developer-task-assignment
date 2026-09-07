@@ -1,6 +1,7 @@
+import { Conflict, NotFound, UnprocessableEntity, type HttpError } from "http-errors";
+
 import { prisma } from "@/db/prisma.ts";
 import { MAX_SUBTASK_DEPTH } from "@/lib/constants.ts";
-import { HttpError } from "@/lib/http-error.ts";
 import { getLogger } from "@/lib/log.ts";
 import { TaskStatus } from "@/generated/prisma/enums.ts";
 import * as skillService from "@/services/skills/skills.service.ts";
@@ -17,7 +18,7 @@ type Db = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 
 /** No task with that id — the same 404 wherever a task is looked up. */
 function taskNotFound(): HttpError {
-  return new HttpError({ message: "Task not found", status: 404 });
+  return new NotFound("Task not found");
 }
 
 /**
@@ -39,7 +40,7 @@ async function assertAssignable(
     // an opaque error, so the ids are confirmed up front.
     const found = await prisma.skill.count({ where: { id: { in: requiredSkillIds } } });
     if (found !== new Set(requiredSkillIds).size) {
-      throw new HttpError({ message: "One or more required skills do not exist", status: 422 });
+      throw new UnprocessableEntity("One or more required skills do not exist");
     }
   }
 
@@ -51,7 +52,7 @@ async function assertAssignable(
     select: { skills: { select: { id: true } } },
   });
   if (!developer) {
-    throw new HttpError({ message: "Assignee is not a known developer", status: 422 });
+    throw new UnprocessableEntity("Assignee is not a known developer");
   }
 
   const held = new Set(developer.skills.map((skill) => skill.id));
@@ -68,9 +69,7 @@ async function assertAssignable(
     assigneeId,
     missingSkills: missingSkills.map((skill) => skill.name),
   });
-  throw new HttpError({
-    message: "Developer lacks the skills this task requires",
-    status: 409,
+  throw Object.assign(new Conflict("Developer lacks the skills this task requires"), {
     details: { missingSkills },
   });
 }
@@ -99,9 +98,7 @@ function assertCompletable(
   getLogger().warn("Completion refused: subtasks still open", {
     unfinishedSubtasks: unfinishedSubtasks.map(({ id, status }) => ({ id, status })),
   });
-  throw new HttpError({
-    message: "All subtasks must be done before this task can be marked done",
-    status: 409,
+  throw Object.assign(new Conflict("All subtasks must be done before this task can be marked done"), {
     details: { unfinishedSubtasks },
   });
 }
@@ -113,9 +110,7 @@ function assertCompletable(
  */
 function assertWithinDepth(depth: number): void {
   if (depth <= MAX_SUBTASK_DEPTH) return;
-  throw new HttpError({
-    message: `Subtasks may be nested at most ${MAX_SUBTASK_DEPTH} levels deep`,
-    status: 422,
+  throw Object.assign(new UnprocessableEntity(`Subtasks may be nested at most ${MAX_SUBTASK_DEPTH} levels deep`), {
     details: { maxDepth: MAX_SUBTASK_DEPTH, depth },
   });
 }
@@ -181,7 +176,7 @@ async function createTree(db: Db, task: TCreateTask, parentId: string | null): P
 /**
  * Business logic and persistence for tasks, backed by Prisma.
  *
- * Anything that can't be satisfied throws an `HttpError` carrying the status
+ * Anything that can't be satisfied throws an `http-errors` error carrying the status
  * to send, so a caller only ever handles the success path and `app.ts` writes
  * the error response.
  *

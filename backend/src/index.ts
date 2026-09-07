@@ -1,9 +1,9 @@
 import express, { type ErrorRequestHandler, type Request, type Response } from "express";
 import cors from "cors";
+import { isHttpError } from "http-errors";
 
 import { prisma } from "@/db/prisma.ts";
 import { env } from "@/lib/env.ts";
-import { HttpError } from "@/lib/http-error.ts";
 import { describeError, logger } from "@/lib/log.ts";
 import { requestLogger } from "@/lib/request-logger.ts";
 import { developersRouter } from "@/services/developers/developers.route.ts";
@@ -30,8 +30,10 @@ app.use((_req: Request, res: Response) => {
 });
 
 const onError: ErrorRequestHandler = (err, req, res, _next) => {
-  // A thrown HttpError is a decision, not a fault — send it as intended.
-  if (err instanceof HttpError) {
+  // A thrown 4xx is a decision, not a fault — send it as intended. This also
+  // covers the errors Express itself raises (body-parser's 400 on bad JSON).
+  // `expose` is false on 5xx, so those fall through and are treated as bugs.
+  if (isHttpError(err) && err.expose) {
     req.log.debug(`Request refused: ${err.message}`, { status: err.status, details: err.details });
     res.status(err.status).json({ error: err.message, details: err.details });
     return;

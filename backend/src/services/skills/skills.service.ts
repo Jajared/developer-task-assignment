@@ -1,7 +1,7 @@
 import { z } from "zod/v4";
 
 import { prisma } from "@/db/prisma.ts";
-import { HttpError } from "@/lib/http-error.ts";
+import { NotFound } from "http-errors";
 import { generateStructured, isLlmConfigured } from "@/lib/llm.ts";
 import { describeError, getLogger } from "@/lib/log.ts";
 
@@ -9,7 +9,7 @@ import { describeError, getLogger } from "@/lib/log.ts";
  * Skills are read-only over the API — they're reference data, created by the
  * seed and referenced by developers and tasks.
  *
- * A missing skill throws an `HttpError` carrying its 404, so the controller
+ * A missing skill throws an `http-errors` 404, so the controller
  * only writes the success path.
  *
  * The controller imports this module as a namespace (`* as skillService`), so
@@ -22,7 +22,7 @@ export async function listSkills() {
 
 export async function findSkillById(id: string) {
   const row = await prisma.skill.findUnique({ where: { id } });
-  if (!row) throw new HttpError({ message: "Skill not found", status: 404 });
+  if (!row) throw new NotFound("Skill not found");
 
   return row;
 }

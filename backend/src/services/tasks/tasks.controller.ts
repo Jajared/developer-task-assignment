@@ -6,7 +6,7 @@ import * as taskValidator from "./tasks.validator.ts";
 /**
  * HTTP layer for tasks: validates the request, calls the service, shapes the
  * response. Only the success path is written here — the service throws an
- * `HttpError` for anything it can't do, `next` forwards it, and the handler in
+ * an `http-errors` error for anything it can't do, `next` forwards it, and the handler in
  * app.ts sends it at the status the error carries.
  */
 
