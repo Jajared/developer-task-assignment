@@ -1,6 +1,7 @@
 import { prisma } from "@/db/prisma.ts";
 import { MAX_SUBTASK_DEPTH } from "@/lib/constants.ts";
 import { HttpError } from "@/lib/http-error.ts";
+import { getLogger } from "@/lib/log.ts";
 import { TaskStatus } from "@/generated/prisma/enums.ts";
 import * as skillService from "@/services/skills/skills.service.ts";
 import type { TCreateTask, TUpdateTask, TUpdateTaskStatus } from "./tasks.validator.ts";
@@ -63,6 +64,10 @@ async function assertAssignable(
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   });
+  getLogger().warn("Assignment refused: developer lacks required skills", {
+    assigneeId,
+    missingSkills: missingSkills.map((skill) => skill.name),
+  });
   throw new HttpError({
     message: "Developer lacks the skills this task requires",
     status: 409,
@@ -91,6 +96,9 @@ function assertCompletable(
     .map(({ id, title, status }) => ({ ...(id && { id }), title, status }));
   if (unfinishedSubtasks.length === 0) return;
 
+  getLogger().warn("Completion refused: subtasks still open", {
+    unfinishedSubtasks: unfinishedSubtasks.map(({ id, status }) => ({ id, status })),
+  });
   throw new HttpError({
     message: "All subtasks must be done before this task can be marked done",
     status: 409,
@@ -211,10 +219,24 @@ export async function createTask(input: TCreateTask) {
   const data = await fillInferredSkills(input);
   await assertTreeValid(data);
 
-  return prisma.$transaction(async (tx) => {
+  const task = await prisma.$transaction(async (tx) => {
     const id = await createTree(tx, data, null);
     return tx.task.findUniqueOrThrow({ where: { id }, include: taskInclude });
   });
+
+  getLogger().info("Task created", {
+    taskId: task.id,
+    status: task.status,
+    assigneeId: task.assigneeId,
+    requiredSkills: task.requiredSkills.map((skill) => skill.name),
+    subtaskCount: countSubtasks(data),
+  });
+  return task;
+}
+
+/** Every node below the root, at any depth. */
+function countSubtasks(task: TCreateTask): number {
+  return task.subtasks.reduce((total, subtask) => total + 1 + countSubtasks(subtask), 0);
 }
 
 /**
@@ -224,7 +246,7 @@ export async function createTask(input: TCreateTask) {
 export async function updateTask(id: string, data: TUpdateTask) {
   const current = await prisma.task.findUnique({
     where: { id },
-    select: { requiredSkills: { select: { id: true } } },
+    select: { assigneeId: true, requiredSkills: { select: { id: true } } },
   });
   if (!current) throw taskNotFound();
 
@@ -233,11 +255,18 @@ export async function updateTask(id: string, data: TUpdateTask) {
     current.requiredSkills.map((skill) => skill.id),
   );
 
-  return prisma.task.update({
+  const task = await prisma.task.update({
     where: { id },
     data: { assigneeId: data.assigneeId },
     include: taskInclude,
   });
+
+  getLogger().info(data.assigneeId ? "Task assigned" : "Task unassigned", {
+    taskId: id,
+    from: current.assigneeId,
+    to: data.assigneeId,
+  });
+  return task;
 }
 
 /**
@@ -265,7 +294,9 @@ export async function updateTaskStatus(id: string, data: TUpdateTaskStatus) {
 
   const reopening = current.status === TaskStatus.done && status !== TaskStatus.done;
 
-  return prisma.$transaction(async (tx) => {
+  const reopenedAncestorIds: string[] = [];
+
+  const row = await prisma.$transaction(async (tx) => {
     const row = await tx.task.update({ where: { id }, data: { status }, include: taskInclude });
 
     let parentId = reopening ? current.parentId : null;
@@ -279,9 +310,18 @@ export async function updateTaskStatus(id: string, data: TUpdateTaskStatus) {
         where: { id: parentId },
         data: { status: TaskStatus.in_progress },
       });
+      reopenedAncestorIds.push(parentId);
       parentId = parent.parentId;
     }
 
     return row;
   });
+
+  getLogger().info("Task status changed", {
+    taskId: id,
+    from: current.status,
+    to: status,
+    ...(reopenedAncestorIds.length > 0 && { reopenedAncestorIds }),
+  });
+  return row;
 }

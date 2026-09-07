@@ -1,6 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
 
-import { log, logVerbose } from "@/lib/log.ts";
 import * as taskService from "./tasks.service.ts";
 import * as taskValidator from "./tasks.validator.ts";
 
@@ -11,8 +10,8 @@ import * as taskValidator from "./tasks.validator.ts";
  * app.ts sends it at the status the error carries.
  */
 
-async function getTasks(_req: Request, res: Response, next: NextFunction): Promise<void> {
-  log("Get all tasks");
+async function getTasks(req: Request, res: Response, next: NextFunction): Promise<void> {
+  req.log.info("Get all tasks");
   try {
     const tasks = await taskService.listTasks();
     res.status(200).json({ tasks });
@@ -22,7 +21,7 @@ async function getTasks(_req: Request, res: Response, next: NextFunction): Promi
 }
 
 async function getTask(req: Request, res: Response, next: NextFunction): Promise<void> {
-  log(`Get task taskId[${req.params.id}]`);
+  req.log.info("Get task", { taskId: req.params.id });
   try {
     const { id } = taskValidator.validateTaskId(req.params);
     const task = await taskService.findTaskById(id);
@@ -33,7 +32,8 @@ async function getTask(req: Request, res: Response, next: NextFunction): Promise
 }
 
 async function createTask(req: Request, res: Response, next: NextFunction): Promise<void> {
-  logVerbose("Create task", req.body);
+  req.log.info("Create task");
+  req.log.debug("Create task body", { body: req.body });
   try {
     const payload = taskValidator.validateCreateTask(req.body);
     const task = await taskService.createTask(payload);
@@ -44,7 +44,8 @@ async function createTask(req: Request, res: Response, next: NextFunction): Prom
 }
 
 async function updateTask(req: Request, res: Response, next: NextFunction): Promise<void> {
-  logVerbose(`Update task taskId[${req.params.id}]`, req.body);
+  req.log.info("Update task", { taskId: req.params.id });
+  req.log.debug("Update task body", { body: req.body });
   try {
     const { id } = taskValidator.validateTaskId(req.params);
     const payload = taskValidator.validateUpdateTask(req.body);
@@ -55,9 +56,9 @@ async function updateTask(req: Request, res: Response, next: NextFunction): Prom
   }
 }
 
-/** Status-only update, so a board drag can't smuggle in an assignee change. */
 async function updateTaskStatus(req: Request, res: Response, next: NextFunction): Promise<void> {
-  logVerbose(`Update task status taskId[${req.params.id}]`, req.body);
+  req.log.info("Update task status", { taskId: req.params.id });
+  req.log.debug("Update task status body", { body: req.body });
   try {
     const { id } = taskValidator.validateTaskId(req.params);
     const payload = taskValidator.validateUpdateTaskStatus(req.body);

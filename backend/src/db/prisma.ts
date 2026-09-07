@@ -2,6 +2,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 
 import { PrismaClient } from "@/generated/prisma/client.ts";
 import { env } from "@/lib/env.ts";
+import { logger } from "@/lib/log.ts";
 
 /**
  * One Prisma client for the process. Prisma 7 talks to Postgres through a
@@ -16,10 +17,20 @@ const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 function createPrismaClient() {
   const adapter = new PrismaPg({ connectionString: env.databaseUrl });
 
-  return new PrismaClient({
+  const client = new PrismaClient({
     adapter,
-    log: env.nodeEnv === "development" ? ["warn", "error"] : ["error"],
+    log: [
+      { level: "warn", emit: "event" },
+      { level: "error", emit: "event" },
+    ],
   });
+
+  // Prisma's own warnings and errors go through the app logger, so they share
+  // its format and level threshold instead of landing on stdout unformatted.
+  client.$on("warn", (event) => logger.warn(event.message, { source: "prisma", target: event.target }));
+  client.$on("error", (event) => logger.error(event.message, { source: "prisma", target: event.target }));
+
+  return client;
 }
 
 export const prisma = globalForPrisma.prisma ?? createPrismaClient();

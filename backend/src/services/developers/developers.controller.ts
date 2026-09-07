@@ -1,6 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
 
-import { log } from "@/lib/log.ts";
 import * as developerService from "./developers.service.ts";
 import * as developerValidator from "./developers.validator.ts";
 
@@ -10,8 +9,8 @@ import * as developerValidator from "./developers.validator.ts";
  * `HttpError` for a missing row, and the handler in app.ts sends it.
  */
 
-async function getDevelopers(_req: Request, res: Response, next: NextFunction): Promise<void> {
-  log("Get all developers");
+async function getDevelopers(req: Request, res: Response, next: NextFunction): Promise<void> {
+  req.log.info("Get all developers");
   try {
     const developers = await developerService.listDevelopers();
     res.status(200).json({ developers });
@@ -21,7 +20,7 @@ async function getDevelopers(_req: Request, res: Response, next: NextFunction): 
 }
 
 async function getDeveloper(req: Request, res: Response, next: NextFunction): Promise<void> {
-  log(`Get developer developerId[${req.params.id}]`);
+  req.log.info("Get developer", { developerId: req.params.id });
   try {
     const { id } = developerValidator.validateDeveloperId(req.params);
     const developer = await developerService.findDeveloperById(id);

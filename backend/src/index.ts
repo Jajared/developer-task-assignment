@@ -4,12 +4,15 @@ import cors from "cors";
 import { prisma } from "@/db/prisma.ts";
 import { env } from "@/lib/env.ts";
 import { HttpError } from "@/lib/http-error.ts";
+import { describeError, logger } from "@/lib/log.ts";
+import { requestLogger } from "@/lib/request-logger.ts";
 import { developersRouter } from "@/services/developers/developers.route.ts";
 import { skillsRouter } from "@/services/skills/skills.route.ts";
 import { tasksRouter } from "@/services/tasks/tasks.route.ts";
 
 const app = express();
 
+app.use(requestLogger);
 app.use(cors({ origin: env.corsOrigins }));
 app.use(express.json());
 
@@ -26,27 +29,34 @@ app.use((_req: Request, res: Response) => {
   res.status(404).json({ error: "Not found" });
 });
 
-const onError: ErrorRequestHandler = (err, _req, res, _next) => {
+const onError: ErrorRequestHandler = (err, req, res, _next) => {
   // A thrown HttpError is a decision, not a fault — send it as intended.
   if (err instanceof HttpError) {
+    req.log.debug(`Request refused: ${err.message}`, { status: err.status, details: err.details });
     res.status(err.status).json({ error: err.message, details: err.details });
     return;
   }
 
-  console.error(err);
+  req.log.error("Unhandled error", { error: describeError(err) });
   res.status(500).json({ error: "Internal server error" });
 };
 app.use(onError);
 
 const server = app.listen(env.port, () => {
-  console.log(`backend listening on http://localhost:${env.port} (${env.nodeEnv})`);
+  logger.info(`Listening on http://localhost:${env.port}`, {
+    port: env.port,
+    nodeEnv: env.nodeEnv,
+    logLevel: env.logLevel,
+  });
 });
 
 // Close the HTTP server and the connection pool so containers stop cleanly.
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, () => {
+    logger.info(`Received ${signal}, shutting down`);
     server.close(async () => {
       await prisma.$disconnect();
+      logger.info("Shutdown complete");
       process.exit(0);
     });
   });

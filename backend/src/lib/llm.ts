@@ -2,7 +2,7 @@ import { GoogleGenAI } from "@google/genai";
 import { z as z4, type z } from "zod/v4";
 
 import { env } from "./env.ts";
-import { log } from "./log.ts";
+import { getLogger, logger } from "./log.ts";
 
 /**
  * The one place the app talks to an LLM. Knows Gemini and Zod; knows nothing
@@ -27,7 +27,7 @@ let warnedNoKey = false;
 export function isLlmConfigured(): boolean {
   if (env.geminiApiKey) return true;
   if (!warnedNoKey) {
-    log("GEMINI_API_KEY is not set — LLM features are disabled");
+    logger.warn("GEMINI_API_KEY is not set — LLM features are disabled");
     warnedNoKey = true;
   }
   return false;
@@ -63,6 +63,7 @@ export async function generateStructured<T>(args: {
   systemInstruction: string;
   prompt: string;
 }): Promise<T> {
+  const startedAt = performance.now();
   const response = await getClient().models.generateContent({
     model: env.geminiModel,
     contents: args.prompt,
@@ -73,6 +74,13 @@ export async function generateStructured<T>(args: {
       temperature: 0,
       abortSignal: AbortSignal.timeout(TIMEOUT_MS),
     },
+  });
+  getLogger().debug("LLM call completed", {
+    model: env.geminiModel,
+    durationMs: Math.round(performance.now() - startedAt),
+    usage: response.usageMetadata
+      ? { input: response.usageMetadata.promptTokenCount, output: response.usageMetadata.candidatesTokenCount }
+      : undefined,
   });
   return parseStructured(args.schema, response.text ?? "");
 }

@@ -10,6 +10,8 @@ import { z } from "zod";
 const envSchema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(4000),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  /** Winston level threshold. Defaults to `debug` outside production, `http` in it. */
+  LOG_LEVEL: z.enum(["error", "warn", "info", "http", "debug"]).optional(),
   /** Postgres connection string used by the Prisma driver adapter. */
   DATABASE_URL: z.string().trim().min(1, "DATABASE_URL must be a Postgres connection string"),
   /** Origins allowed to call this API from a browser, comma-separated. */
@@ -50,6 +52,7 @@ const parsed = loadEnv();
 export const env = {
   port: parsed.PORT,
   nodeEnv: parsed.NODE_ENV,
+  logLevel: parsed.LOG_LEVEL ?? (parsed.NODE_ENV === "production" ? "http" : "debug"),
   databaseUrl: parsed.DATABASE_URL,
   corsOrigins: parsed.CORS_ORIGINS,
   geminiApiKey: parsed.GEMINI_API_KEY,

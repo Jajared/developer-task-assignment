@@ -1,7 +1,7 @@
 # backend
 
 Express 5 on the Bun runtime, Prisma 7 over Postgres. Deps: `express`, `cors`,
-`zod`, `@prisma/client`, `@prisma/adapter-pg`.
+`zod`, `winston`, `@prisma/client`, `@prisma/adapter-pg`.
 
 ## Layout
 
@@ -19,7 +19,8 @@ src/
   lib/env.ts           # every process.env read, parsed once with a Zod schema; boot fails naming any bad variable
   lib/http-error.ts    # HttpError: an error that carries its HTTP status
   lib/validate.ts      # parseOrThrow(): ZodError → 422 HttpError
-  lib/log.ts           # log() / logVerbose(); verbose is silent in production
+  lib/log.ts           # Winston `logger` + describeError(); pretty in dev, JSON in prod
+  lib/request-logger.ts # first middleware: request id, req.log child logger, access line
   lib/llm.ts           # generateStructured(): Gemini + Zod structured output; knows no domain
   services/tasks/
     tasks.route.ts        # path → controller
@@ -90,7 +91,8 @@ These cost real time if you don't know them:
 
   ```ts
   async function createTask(req: Request, res: Response, next: NextFunction): Promise<void> {
-    logVerbose("Create task", req.body);
+    req.log.info("Create task");
+    req.log.debug("Create task body", { body: req.body });
     try {
       const payload = taskValidator.validateCreateTask(req.body);
       respond(res, await taskService.createTask(payload), 201);
@@ -139,6 +141,25 @@ These cost real time if you don't know them:
   Bun honours it at runtime and in `bun build`, so there is no extra tooling.
 - **Read env only in `lib/env.ts`.** `GEMINI_API_KEY` (optional) and
   `GEMINI_MODEL` (default `gemini-2.5-flash`) live there too.
+- **Log through Winston, never `console`.** Inside a handler use `req.log`
+  (a child logger carrying `requestId`, attached by `requestLogger` in
+  `lib/request-logger.ts`); in a service or lib call `getLogger()`, which
+  returns that same child via AsyncLocalStorage during a request; at boot or
+  in scripts import `logger`. Both come from `lib/log.ts`.
+  Pass context as a meta object, not interpolated into the message
+  (`req.log.info("Get task", { id })`), and wrap thrown values with
+  `describeError(err)` so the stack survives serialisation. Levels: `error`
+  for bugs, `warn` for degraded-but-handled (inference failed, 4xx access
+  lines), `info` for handler entry and lifecycle, `http` for access lines,
+  `debug` for anything echoing user input. `LOG_LEVEL` sets the threshold —
+  default `debug` in development, `http` in production, silent under `test`
+  unless set. Every response carries `X-Request-Id`; an incoming
+  `x-request-id` header is honoured so a proxy's id threads through.
+- **Every business event is logged once, in the service that performs it,**
+  with ids in meta: task created, assigned/unassigned, status changed (with
+  any reopened ancestors), each 409 rule refusing, skill inference result or
+  failure, and each LLM call's duration at `debug`. A new write path or rule
+  should add its own line in the same style.
 
 ## Status codes
 

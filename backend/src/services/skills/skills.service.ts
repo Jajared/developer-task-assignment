@@ -3,7 +3,7 @@ import { z } from "zod/v4";
 import { prisma } from "@/db/prisma.ts";
 import { HttpError } from "@/lib/http-error.ts";
 import { generateStructured, isLlmConfigured } from "@/lib/llm.ts";
-import { logVerbose } from "@/lib/log.ts";
+import { describeError, getLogger } from "@/lib/log.ts";
 
 /**
  * Skills are read-only over the API — they're reference data, created by the
@@ -74,10 +74,10 @@ export async function inferRequiredSkillIds(task: {
       prompt,
     });
     const unique = [...new Set(picked)];
-    logVerbose(`Inferred skills for "${task.title}"`, unique);
+    getLogger().info("Inferred required skills", { title: task.title, skills: unique });
     return unique.map((name) => idByName.get(name)!);
   } catch (error) {
-    console.warn(`[api] skill inference failed for "${task.title}":`, error);
+    getLogger().warn("Skill inference failed", { title: task.title, error: describeError(error) });
     return [];
   }
 }
