@@ -9,7 +9,8 @@ conventions, and the docs are vendored in `node_modules/next/dist/docs/`.
 Dependencies are `next`, `react`, `react-dom` plus shadcn/ui and what it
 pulls in (`radix-ui`, `class-variance-authority`, `cn`, `lucide-react`,
 `tw-animate-css`, `cmdk`, `sonner`), plus `react-hook-form` for form state
-and `@tanstack/react-query` for server state. No `zod` — add it only if asked. Forms use
+`@tanstack/react-query` for server state and `nuqs` for URL state (see
+**URL state** below). No `zod` — add it only if asked. Forms use
 `useForm` directly with inline `validate` rules (see
 `app/_components/create-task-panel.tsx`); `Controller` wraps the non-native
 inputs such as the shadcn `Select` and the skill toggle chips. The create form
@@ -23,14 +24,15 @@ app/
                        #   TooltipProvider + Toaster
   page.tsx             # the task list — a server component that prefetches
                        #   into React Query and hydrates the client shell
-  providers.tsx        # QueryClientProvider, wired in layout.tsx
+  providers.tsx        # NuqsAdapter + QueryClientProvider, wired in layout.tsx
   _components/         # components private to this route (see below)
     create-task-panel.tsx   # the create form: root fields + SubtaskList
     task-form-fields.tsx    # one task's fields, bound at a form path; TaskFormValues
     subtask-fields.tsx      # SubtaskList/SubtaskCard — the recursive field array
     skill-picker.tsx        # required-skill toggle chips
     task-ui.ts              # labels, styles, tree helpers (flattenTree, childrenOf…)
-  _hooks/              # React Query mutation hooks for this route
+  _hooks/              # route-private hooks: React Query mutations and
+                       #   use-task-search-params.ts, the nuqs URL state
   globals.css          # tailwind + shadcn theme tokens (see below)
 components/
   ui/                  # shadcn/ui components — generated, ours to edit —
@@ -53,10 +55,27 @@ for shared pieces only, which so far means `components/ui/`.
 Render on the server wherever possible. `page.tsx` is a server component and
 stays one; add `"use client"` only on the component that actually needs state
 or handlers, not the page. `app/_components/task-manager.tsx` is the one
-client boundary — it owns task, filter and side-panel state — and static
+client boundary — it owns the expanded-rows set and the create panel, and
+reads the filter and open task from the URL (see **URL state**) — and static
 pieces like `backlog-heading.tsx` are server components passed into it as
-props. Helpers in `task-ui.ts` and presentational bits (`skill-badge`,
+props. `page.tsx` wraps it in `Suspense` because nuqs uses `useSearchParams`,
+which Next refuses to prerender without a boundary; the route is dynamic, so
+the fallback never actually shows. Helpers in `task-ui.ts` and presentational bits (`skill-badge`,
 `developer-avatar`) have no directive so they work on either side.
+
+## URL state
+
+The list filter and the open task are query params, managed by `nuqs` so a
+view can be linked to or reloaded: `?filter=in_progress` (one of
+`FILTER_VALUES`; `all` is the default and is dropped from the URL, unknown
+values fall back to it) and `?task=<id>` (absent when the panel is closed).
+`app/_hooks/use-task-search-params.ts` owns both: `taskSearchParams` is the
+parser map, kept separate so a server `createLoader` could read the same
+params, and `useTaskSearchParams()` wraps `useQueryStates` with
+`history: "replace"` and returns intention-named setters (`setFilter`,
+`openTask`, `closeTask`, `showNewTask`). Components call those rather than
+touching `setParams`. Add new URL state there, not as another `useState`.
+The create panel stays local — an unsaved form is not a shareable view.
 
 ## Subtasks
 

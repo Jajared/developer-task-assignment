@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { HydrationBoundary, dehydrate } from "@tanstack/react-query";
 
 import { BacklogHeading } from "@/app/_components/backlog-heading";
@@ -14,6 +15,10 @@ import { getQueryClient } from "@/lib/query-client";
  * `prefetchQuery` swallows failures on purpose: if the API is down the query
  * is simply absent from the cache, the client retries, and `TaskManager`
  * renders its error panel instead of the route crashing.
+ *
+ * `TaskManager` reads the URL through nuqs (`useSearchParams` underneath),
+ * which Next requires to sit under a `Suspense` boundary for the build-time
+ * prerender. The route is dynamic, so the fallback never shows in practice.
  */
 export default async function Home() {
   const queryClient = getQueryClient();
@@ -25,7 +30,9 @@ export default async function Home() {
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <TaskManager heading={<BacklogHeading />} />
+      <Suspense>
+        <TaskManager heading={<BacklogHeading />} />
+      </Suspense>
     </HydrationBoundary>
   );
 }

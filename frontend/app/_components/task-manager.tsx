@@ -1,28 +1,31 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { developerQueries, skillQueries, taskQueries } from "@/lib/queries";
-import type { CreateTaskInput, TaskPatch, TaskStatus } from "@/lib/types";
+import type { CreateTaskInput, TaskPatch } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 import { CreateTaskPanel, type NewTaskInput } from "./create-task-panel";
 import { TaskDetailPanel } from "./task-detail-panel";
 import { TaskTable } from "./task-table";
-import { STATUSES, STATUS_LABEL, ancestorsOf, todayIso } from "./task-ui";
+import { STATUS_LABEL, ancestorsOf, todayIso } from "./task-ui";
 import { describeError, useTaskMutations } from "@/app/_hooks/use-task-mutations";
+import {
+  FILTER_VALUES,
+  type Filter,
+  useTaskSearchParams,
+} from "@/app/_hooks/use-task-search-params";
 
 type Props = {
   /** Server-rendered heading; kept out of the client bundle. */
   heading: React.ReactNode;
   showDescriptions?: boolean;
 };
-
-type Filter = "all" | "unassigned" | TaskStatus;
 
 /** The form's tree, mapped to the API body; skills become ids at every level. */
 function toCreateInput(input: NewTaskInput): CreateTaskInput {
@@ -40,18 +43,23 @@ function toCreateInput(input: NewTaskInput): CreateTaskInput {
 function countSubtasks(input: NewTaskInput): number {
   return input.subtasks.reduce((n, s) => n + 1 + countSubtasks(s), 0);
 }
-type Panel = { kind: "detail"; id: string } | { kind: "create" } | null;
+const FILTER_LABEL: Record<Filter, string> = {
+  all: "All",
+  unassigned: "Unassigned",
+  ...STATUS_LABEL,
+};
 
-const FILTERS: { value: Filter; label: string }[] = [
-  { value: "all", label: "All" },
-  ...STATUSES.map((s) => ({ value: s as Filter, label: STATUS_LABEL[s] })),
-  { value: "unassigned", label: "Unassigned" },
-];
+const FILTERS = FILTER_VALUES.map((value) => ({
+  value,
+  label: FILTER_LABEL[value],
+}));
 
 /**
  * The one client boundary on the page. Reads tasks, developers and skills
  * from the React Query cache — hydrated by the server prefetch in
- * `app/page.tsx` — and owns the filter and side-panel selection.
+ * `app/page.tsx` — and owns the side-panel selection. The list filter and the
+ * open task live in the URL (`?filter=`, `?task=`) via nuqs, so a view can be
+ * shared or reloaded; only the create panel is local state.
  */
 export function TaskManager({ heading, showDescriptions = true }: Props) {
   const tasksQuery = useQuery(taskQueries.list());
@@ -59,13 +67,13 @@ export function TaskManager({ heading, showDescriptions = true }: Props) {
   const skillsQuery = useQuery(skillQueries.list());
   const { update, create } = useTaskMutations();
 
-  const [filter, setFilter] = useState<Filter>("all");
-  const [panel, setPanel] = useState<Panel>(null);
+  const url = useTaskSearchParams();
+  const [creating, setCreating] = useState(false);
   // Tasks whose subtasks are shown in the list. Collapsed by default.
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
   const [today] = useState(todayIso);
 
-  const tasks = tasksQuery.data ?? [];
+  const tasks = useMemo(() => tasksQuery.data ?? [], [tasksQuery.data]);
   const developers = developersQuery.data ?? [];
   const skills = skillsQuery.data ?? [];
   const error = tasksQuery.error ?? developersQuery.error ?? skillsQuery.error;
@@ -73,17 +81,16 @@ export function TaskManager({ heading, showDescriptions = true }: Props) {
     tasksQuery.isPending || developersQuery.isPending || skillsQuery.isPending;
 
   const visible = tasks.filter((t) =>
-    filter === "all"
+    url.filter === "all"
       ? true
-      : filter === "unassigned"
+      : url.filter === "unassigned"
         ? !t.assigneeId
-        : t.status === filter,
+        : t.status === url.filter,
   );
   const unassignedCount = tasks.filter((t) => !t.assigneeId).length;
-  const selected =
-    panel?.kind === "detail"
-      ? (tasks.find((t) => t.id === panel.id) ?? null)
-      : null;
+  const selected = url.openTaskId
+    ? (tasks.find((t) => t.id === url.openTaskId) ?? null)
+    : null;
 
   const updateTask = (id: string, patch: TaskPatch) =>
     update.mutate({ id, input: patch });
@@ -95,20 +102,25 @@ export function TaskManager({ heading, showDescriptions = true }: Props) {
       return next;
     });
 
-  /** Open a task's details and make sure it is visible in the list. */
-  const openTask = (id: string) => {
-    setPanel({ kind: "detail", id });
-    const ancestors = ancestorsOf(tasks, id);
-    if (ancestors.some((a) => !expanded.has(a)))
-      setExpanded((prev) => new Set([...prev, ...ancestors]));
-  };
+  const openTask = url.openTask;
+
+  // The open task must stay visible in the list, so its ancestors are shown
+  // alongside whatever the user expanded. Derived rather than written into
+  // `expanded` so it also covers a deep link (`?task=` on first load).
+  const shown = useMemo(() => {
+    if (!url.openTaskId) return expanded;
+    const ancestors = ancestorsOf(tasks, url.openTaskId);
+    return ancestors.every((a) => expanded.has(a))
+      ? expanded
+      : new Set([...expanded, ...ancestors]);
+  }, [expanded, tasks, url.openTaskId]);
 
   const createTask = (input: NewTaskInput) => {
     const subtasks = countSubtasks(input);
     create.mutate(toCreateInput(input), {
       onSuccess: ({ task }) => {
-        setFilter("all");
-        setPanel({ kind: "detail", id: task.id });
+        setCreating(false);
+        url.showNewTask(task.id);
         if (subtasks) setExpanded((prev) => new Set([...prev, task.id]));
         toast.success(
           subtasks
@@ -133,7 +145,7 @@ export function TaskManager({ heading, showDescriptions = true }: Props) {
             <Button
               size="lg"
               disabled={!!error || loading}
-              onClick={() => setPanel({ kind: "create" })}
+              onClick={() => setCreating(true)}
               className="bg-blue-600 text-white hover:bg-blue-700"
             >
               + Add task
@@ -148,13 +160,13 @@ export function TaskManager({ heading, showDescriptions = true }: Props) {
             aria-label="Filter tasks"
           >
             {FILTERS.map((f) => {
-              const active = f.value === filter;
+              const active = f.value === url.filter;
               return (
                 <button
                   key={f.value}
                   type="button"
                   aria-pressed={active}
-                  onClick={() => setFilter(f.value)}
+                  onClick={() => url.setFilter(f.value)}
                   className={cn(
                     "h-7.5 rounded-full border px-3 text-[13px] font-medium transition-colors",
                     active
@@ -197,7 +209,7 @@ export function TaskManager({ heading, showDescriptions = true }: Props) {
               selectedId={selected?.id ?? null}
               today={today}
               showDescriptions={showDescriptions}
-              expanded={expanded}
+              expanded={shown}
               onToggleExpanded={toggleExpanded}
               onOpen={openTask}
               onUpdate={updateTask}
@@ -214,17 +226,17 @@ export function TaskManager({ heading, showDescriptions = true }: Props) {
           developers={developers}
           onUpdate={updateTask}
           onOpen={openTask}
-          onClose={() => setPanel(null)}
+          onClose={url.closeTask}
         />
       ) : null}
 
-      {panel?.kind === "create" ? (
+      {creating ? (
         <CreateTaskPanel
           skills={skills}
           developers={developers}
           onCreate={createTask}
           pending={create.isPending}
-          onClose={() => setPanel(null)}
+          onClose={() => setCreating(false)}
         />
       ) : null}
     </div>
