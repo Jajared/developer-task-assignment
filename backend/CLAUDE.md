@@ -16,7 +16,7 @@ src/
                        # handler, listen; $disconnect on SIGINT/SIGTERM
   db/prisma.ts         # PrismaClient singleton, cached on globalThis for --watch
   generated/prisma/    # generated client — GITIGNORED, never edit, never commit
-  lib/env.ts           # every process.env read; DATABASE_URL throws if missing
+  lib/env.ts           # every process.env read, parsed once with a Zod schema; boot fails naming any bad variable
   lib/http-error.ts    # HttpError: an error that carries its HTTP status
   lib/validate.ts      # parseOrThrow(): ZodError → 422 HttpError
   lib/log.ts           # log() / logVerbose(); verbose is silent in production
