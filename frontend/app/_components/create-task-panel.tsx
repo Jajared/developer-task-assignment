@@ -121,7 +121,7 @@ export function CreateTaskPanel({
               type="submit"
               size="lg"
               disabled={pending}
-              className="w-full bg-blue-600 text-white hover:bg-blue-700 sm:w-auto"
+              className="w-full sm:w-auto"
             >
               {pending ? "Creating…" : "Create task"}
             </Button>

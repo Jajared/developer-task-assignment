@@ -69,7 +69,7 @@ export function TaskCards({
             key={task.id}
             className={cn(
               "flex flex-col gap-2.5 rounded-lg border bg-background p-3",
-              selected && "border-violet-300 bg-violet-50",
+              selected && "border-primary/40 bg-primary/5",
             )}
             style={depth ? { marginLeft: depth * INDENT } : undefined}
           >

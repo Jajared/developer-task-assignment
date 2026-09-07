@@ -23,8 +23,6 @@ import {
 } from "@/app/_hooks/use-task-search-params";
 
 type Props = {
-  /** Server-rendered heading; kept out of the client bundle. */
-  heading: React.ReactNode;
   showDescriptions?: boolean;
 };
 
@@ -60,7 +58,7 @@ const FILTERS = FILTER_VALUES.map((value) => ({
  * open task live in the URL (`?filter=`, `?task=`) via nuqs, so a view can be
  * shared or reloaded; only the create panel is local state.
  */
-export function TaskManager({ heading, showDescriptions = true }: Props) {
+export function TaskManager({ showDescriptions = true }: Props) {
   const tasksQuery = useQuery(taskQueries.list());
   const developersQuery = useQuery(developerQueries.list());
   const skillsQuery = useQuery(skillQueries.list());
@@ -137,12 +135,14 @@ export function TaskManager({ heading, showDescriptions = true }: Props) {
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="border-b px-4 pt-4 pb-3 sm:px-8 sm:pt-5 sm:pb-4">
           <div className="flex items-center justify-between gap-3">
-            {heading}
+            <h1 className="truncate text-lg leading-tight font-bold sm:text-[22px]">
+              Engineering backlog
+            </h1>
             <Button
               size="lg"
               disabled={loading}
               onClick={() => setCreating(true)}
-              className="shrink-0 bg-blue-600 text-white hover:bg-blue-700"
+              className="shrink-0"
             >
               + Add task
             </Button>

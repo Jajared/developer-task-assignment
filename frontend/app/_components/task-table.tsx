@@ -83,7 +83,7 @@ export function TaskTable({
             <TableRow
               key={task.id}
               data-state={selected ? "selected" : undefined}
-              className="data-[state=selected]:bg-violet-50"
+              className="data-[state=selected]:bg-primary/5"
             >
               <TableCell className={cn(bodyCell, "border-b")}>
                 <TaskRowTitle

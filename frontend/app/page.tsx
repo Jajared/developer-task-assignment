@@ -1,7 +1,6 @@
 import { Suspense } from "react";
 import { HydrationBoundary, dehydrate } from "@tanstack/react-query";
 
-import { BacklogHeading } from "@/app/_components/backlog-heading";
 import { TaskManager } from "@/app/_components/task-manager";
 import { developerQueries, skillQueries, taskQueries } from "@/lib/queries";
 import { getQueryClient } from "@/lib/query-client";
@@ -31,7 +30,7 @@ export default async function Home() {
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
       <Suspense>
-        <TaskManager heading={<BacklogHeading />} />
+        <TaskManager />
       </Suspense>
     </HydrationBoundary>
   );

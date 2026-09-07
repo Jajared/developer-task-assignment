@@ -119,7 +119,7 @@ function SubtaskCard({
     <div
       className={cn(
         "rounded-lg border border-l-4 bg-background",
-        invalid ? "border-l-red-400" : "border-l-blue-300",
+        invalid ? "border-l-red-400" : "border-l-primary/40",
       )}
     >
       <div className="flex items-center gap-1 py-1 pr-1 pl-3">

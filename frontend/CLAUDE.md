@@ -27,6 +27,9 @@ app/
   error.tsx            # the route's error boundary; queries throwOnError into it
   providers.tsx        # NuqsAdapter + QueryClientProvider, wired in layout.tsx
   _components/         # components private to this route (see below)
+    task-manager.tsx        # the client shell: heading, filters, list, panels
+    task-table.tsx          # the list at md and up; task-cards.tsx below md
+    task-row-title.tsx      # expander + title cell shared by both lists
     create-task-panel.tsx   # the create form: root fields + SubtaskList
     task-form-fields.tsx    # one task's fields, bound at a form path; TaskFormValues
     subtask-fields.tsx      # SubtaskList/SubtaskCard — the recursive field array
@@ -57,9 +60,8 @@ Render on the server wherever possible. `page.tsx` is a server component and
 stays one; add `"use client"` only on the component that actually needs state
 or handlers, not the page. `app/_components/task-manager.tsx` is the one
 client boundary — it owns the expanded-rows set and the create panel, and
-reads the filter and open task from the URL (see **URL state**) — and static
-pieces like `backlog-heading.tsx` are server components passed into it as
-props. `page.tsx` wraps it in `Suspense` because nuqs uses `useSearchParams`,
+reads the filter and open task from the URL (see **URL state**) — and renders
+the page heading itself. `page.tsx` wraps it in `Suspense` because nuqs uses `useSearchParams`,
 which Next refuses to prerender without a boundary; the route is dynamic, so
 the fallback never actually shows. Helpers in `task-ui.ts` and presentational bits (`skill-badge`,
 `developer-avatar`) have no directive so they work on either side.
