@@ -34,7 +34,7 @@ const envSchema = z.object({
     .trim()
     .transform((value) => value || null)
     .default(""),
-  GEMINI_MODEL: z.string().trim().min(1).default("gemini-3.5-flash"),
+  GEMINI_MODEL: z.string().trim().min(1).default("gemini-3.5-flash-lite"),
 });
 
 function loadEnv() {

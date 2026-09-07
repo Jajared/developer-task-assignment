@@ -8,6 +8,10 @@ import { parseOrThrow } from "@/lib/validate.ts";
  * Request shapes for the task routes. The allowed values come from the Prisma
  * schema's enums, so the API rejects anything the database column would.
  *
+ * Every body schema is `.strict()`: a field the route does not accept (a
+ * `status` on the assign route, a `title` on any update, a `parentId` on
+ * create) is a 422 naming it, never silently dropped.
+ *
  * Relations are written by id: `assigneeId` names a developer, and
  * `requiredSkillIds` (create only) is the task's required-skill set. Whether
  * that pairing is *allowed* is a rule, not a shape — tasks.service.ts owns it.
@@ -22,25 +26,27 @@ import { parseOrThrow } from "@/lib/validate.ts";
  */
 
 /** The fields every task has, subtasks included, before recursion is added. */
-const taskFieldsSchema = z.object({
-  title: z
-    .string({ message: "Title is required" })
-    .trim()
-    .min(1, "Title is required")
-    .max(200, "Title must be at most 200 characters"),
-  description: z
-    .string()
-    .trim()
-    .max(2000, "Description must be at most 2000 characters")
-    .nullish(),
-  status: z
-    .nativeEnum(TaskStatus, { message: "Status must be todo, in_progress or done" })
-    .default(TaskStatus.todo),
-  assigneeId: z.string().uuid("Assignee must be a developer id").nullish(),
-  requiredSkillIds: z
-    .array(z.string().uuid("Required skills must be skill ids"))
-    .default([]),
-});
+const taskFieldsSchema = z
+  .object({
+    title: z
+      .string({ message: "Title is required" })
+      .trim()
+      .min(1, "Title is required")
+      .max(200, "Title must be at most 200 characters"),
+    description: z
+      .string()
+      .trim()
+      .max(2000, "Description must be at most 2000 characters")
+      .nullish(),
+    status: z
+      .nativeEnum(TaskStatus, { message: "Status must be todo, in_progress or done" })
+      .default(TaskStatus.todo),
+    assigneeId: z.string().uuid("Assignee must be a developer id").nullish(),
+    requiredSkillIds: z
+      .array(z.string().uuid("Required skills must be skill ids"))
+      .default([]),
+  })
+  .strict();
 
 type TTaskFieldsInput = z.input<typeof taskFieldsSchema>;
 type TTaskFields = z.output<typeof taskFieldsSchema>;
@@ -88,17 +94,21 @@ const createTaskBodySchema = createTaskSchema.superRefine((task, ctx) => {
  * changes: null unassigns. Everything else about a task is fixed at creation,
  * and status has its own route.
  */
-const updateTaskSchema = z.object({
-  assigneeId: z
-    .string({ message: "assigneeId is required (null to unassign)" })
-    .uuid("Assignee must be a developer id")
-    .nullable(),
-});
+const updateTaskSchema = z
+  .object({
+    assigneeId: z
+      .string({ message: "assigneeId is required (null to unassign)" })
+      .uuid("Assignee must be a developer id")
+      .nullable(),
+  })
+  .strict();
 
 /** Body for the dedicated status route, where only the status may change. */
-const updateTaskStatusSchema = z.object({
-  status: z.nativeEnum(TaskStatus, { message: "Status must be todo, in_progress or done" }),
-});
+const updateTaskStatusSchema = z
+  .object({
+    status: z.nativeEnum(TaskStatus, { message: "Status must be todo, in_progress or done" }),
+  })
+  .strict();
 
 export type TUpdateTask = z.infer<typeof updateTaskSchema>;
 export type TUpdateTaskStatus = z.infer<typeof updateTaskStatusSchema>;

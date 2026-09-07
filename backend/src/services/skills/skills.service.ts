@@ -54,7 +54,7 @@ export async function inferRequiredSkillIds(task: {
 }): Promise<string[]> {
   if (!isLlmConfigured()) return [];
 
-  const skills = await prisma.skill.findMany({ select: { id: true, name: true } });
+  const skills = await prisma.skill.findMany({ select: { id: true, name: true }, orderBy: { name: "asc" } });
   if (skills.length === 0) return [];
   const idByName = new Map(skills.map((skill) => [skill.name, skill.id]));
   const names = [...idByName.keys()] as [string, ...string[]];

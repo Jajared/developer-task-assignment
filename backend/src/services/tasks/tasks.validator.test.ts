@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { MAX_SUBTASKS_PER_TASK, MAX_TASKS_PER_CREATE } from "@/lib/constants.ts";
-import { validateCreateTask } from "./tasks.validator.ts";
+import { validateCreateTask, validateUpdateTask, validateUpdateTaskStatus } from "./tasks.validator.ts";
 
 /**
  * The size caps on a create body. Pure — no database — so this runs anywhere.
@@ -56,5 +56,35 @@ describe("validateCreateTask", () => {
         }),
       }),
     );
+  });
+});
+
+describe("unknown fields are refused, not dropped", () => {
+  const unknownKey = (fn: () => unknown, key: string) =>
+    expect(fn).toThrow(
+      expect.objectContaining({
+        status: 422,
+        details: expect.objectContaining({ formErrors: [`Unrecognized key(s) in object: '${key}'`] }),
+      }),
+    );
+
+  test("create: a parentId or a priority on the root is a 422", () => {
+    unknownKey(() => validateCreateTask({ title: "Root", parentId: crypto.randomUUID() }), "parentId");
+    unknownKey(() => validateCreateTask({ title: "Root", priority: "high" }), "priority");
+  });
+
+  test("create: the rule applies inside nested subtasks too", () => {
+    expect(() => validateCreateTask({ title: "Root", subtasks: [{ title: "c", id: "x" }] })).toThrow(
+      expect.objectContaining({ status: 422 }),
+    );
+  });
+
+  test("assign: a status or title alongside assigneeId is a 422", () => {
+    unknownKey(() => validateUpdateTask({ assigneeId: null, status: "done" }), "status");
+    unknownKey(() => validateUpdateTask({ assigneeId: null, title: "renamed" }), "title");
+  });
+
+  test("status: an assigneeId alongside status is a 422", () => {
+    unknownKey(() => validateUpdateTaskStatus({ status: "done", assigneeId: null }), "assigneeId");
   });
 });

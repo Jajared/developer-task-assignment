@@ -1,5 +1,6 @@
 import express, { type ErrorRequestHandler, type Express, type Request, type Response } from "express";
 import cors from "cors";
+import helmet from "helmet";
 import { isHttpError } from "http-errors";
 
 import { env } from "@/lib/env.ts";
@@ -13,6 +14,7 @@ export function createApp(): Express {
   const app = express();
 
   app.use(requestLogger);
+  app.use(helmet());
   app.use(cors({ origin: env.corsOrigins }));
   app.use(express.json());
 

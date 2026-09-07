@@ -58,8 +58,9 @@ Single-page app. Route-private code lives in `app/_components` and
 - **Tailwind only.** Colors through `@theme inline` tokens in `globals.css`.
   Light mode only: no `dark:` utilities, no dark token block. If `shadcn add`
   writes one back, remove it.
-- `bun run lint` and `bun run typecheck` pass; keep them passing. There are no
-  frontend tests.
+- `bun run lint`, `bun run typecheck` and `bun test` pass; keep them passing.
+  The only suite is `app/_components/task-ui.test.ts` (pure helpers, no DOM);
+  add tests for new pure logic there or beside it.
 
 ## Subtasks
 
@@ -114,5 +115,5 @@ public URL. `next.config.ts` sets `output: "standalone"` for the image.
 ## Commands
 
 ```sh
-bun run dev | build | typecheck | lint     # or bun --filter frontend <script>
+bun run dev | build | typecheck | lint | test   # or bun --filter frontend <script>
 ```

@@ -14,7 +14,7 @@ import { CreateTaskPanel, type NewTaskInput } from "./create-task-panel";
 import { TaskDetailPanel } from "./task-detail-panel";
 import { TaskCards } from "./task-cards";
 import { TaskTable } from "./task-table";
-import { STATUS_LABEL, ancestorsOf } from "./task-ui";
+import { STATUS_LABEL, ancestorsOf, flattenTree } from "./task-ui";
 import { useTaskMutations } from "@/app/_hooks/use-task-mutations";
 import {
   FILTER_VALUES,
@@ -109,6 +109,9 @@ export function TaskManager({ showDescriptions = true }: Props) {
       : new Set([...expanded, ...ancestors]);
   }, [expanded, tasks, url.openTaskId]);
 
+  // Rows actually on screen: collapsed subtasks are not counted.
+  const shownCount = flattenTree(visible, shown).length;
+
   const createTask = (input: NewTaskInput) => {
     const subtasks = countSubtasks(input);
     create.mutate(toCreateInput(input), {
@@ -182,7 +185,7 @@ export function TaskManager({ showDescriptions = true }: Props) {
             })}
           </div>
           <span className="text-[13px] text-muted-foreground">
-            Showing {visible.length} {visible.length === 1 ? "task" : "tasks"}
+            Showing {shownCount} {shownCount === 1 ? "task" : "tasks"}
           </span>
         </div>
 

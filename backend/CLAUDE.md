@@ -127,7 +127,7 @@ regenerates the client) → update `frontend/types/` by hand.
 `bun test` from this folder (script sets `NODE_ENV=test` and blanks
 `GEMINI_API_KEY`). Four suites, next to the code they cover:
 
-- `lib/llm.test.ts`, `services/tasks/tasks.validator.test.ts` — pure.
+- `lib/llm.test.ts`, `services/tasks/tasks.validator.test.ts` — pure (caps, strict bodies).
 - `services/tasks/tasks.test.ts`, `services/skills/skills.test.ts` — HTTP over
   `createApp().listen(0)`; **need a running, seeded database**.
 

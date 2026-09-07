@@ -85,7 +85,9 @@ export function TaskTable({
               data-state={selected ? "selected" : undefined}
               className="data-[state=selected]:bg-primary/5"
             >
-              <TableCell className={cn(bodyCell, "border-b")}>
+              {/* shadcn's TableCell is whitespace-nowrap; long titles must wrap
+                  or they push the Status column off-screen. */}
+              <TableCell className={cn(bodyCell, "border-b whitespace-normal")}>
                 <TaskRowTitle
                   task={task}
                   depth={depth}

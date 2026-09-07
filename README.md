@@ -86,7 +86,7 @@ Open http://localhost:3000. The API answers at http://localhost:4000 (try
 `GET /health`).
 
 To enable skill inference, set `GEMINI_API_KEY` in `backend/.env` (a free
-Google AI Studio key works). `GEMINI_MODEL` defaults to `gemini-3.5-flash`.
+Google AI Studio key works). `GEMINI_MODEL` defaults to `gemini-3.5-flash-lite`.
 
 Without Docker: point `DATABASE_URL` at any Postgres, or run
 `bun --filter backend db:dev` for Prisma's local server and paste the URL it
@@ -106,7 +106,7 @@ Root scripts (run from the repo root):
 | `bun dev:backend` / `bun dev:frontend` | Run one app |
 | `bun run build` | Generate client + bundle backend; `next build` |
 | `bun run start` | Run the built apps |
-| `bun run test` | Backend test suite (needs a running, seeded database) |
+| `bun run test` | Both test suites (the backend one needs a running, seeded database) |
 | `bun run typecheck` | `tsc --noEmit` in both apps |
 | `bun run lint` | ESLint on the frontend |
 
@@ -167,15 +167,135 @@ docker-compose.yml          # postgres, backend, frontend
 ## Testing
 
 ```sh
-bun run test
+bun run test                      # both workspaces
+bun --filter backend test         # or one of them
+bun --filter frontend test
 ```
 
-Backend only, 4 suites, 38 tests. Two are pure (LLM schema handling, request
-validation caps). Two drive the app over HTTP against the real database and
-need `db:up`, `db:migrate` and `db:seed` first. The LLM is always stubbed;
-no test needs a Gemini key. The suites clean up every row they create.
+Backend: 4 suites. Two are pure (LLM schema handling, request validation
+including the size caps and strict bodies). Two drive the app over HTTP
+against the real database and need `db:up`, `db:migrate` and `db:seed`
+first. The LLM is always stubbed; no test needs a Gemini key. The suites
+clean up every row they create.
 
-There are no frontend tests.
+Frontend: one pure suite, `app/_components/task-ui.test.ts`, for the helpers
+that rebuild the tree from the flat list and mirror the server's two rules
+(`flattenTree`, `ancestorsOf`, `hasUnfinishedSubtasks`, skill matching). No
+DOM or network; runs anywhere with `bun test`.
+
+## System design
+
+```
+Browser ──▶ Next.js (frontend :3000) ──▶ Express API (backend :4000) ──▶ Postgres
+              server components prefetch;      Prisma 7 (pg adapter)
+              React Query on the client        └──▶ Google Gemini (skill inference)
+```
+
+- **Two services, one contract.** The backend owns the data model
+  (`backend/db/schema.prisma`) and exposes JSON over REST. The frontend is one
+  page that renders the task list server-side, hydrates a React Query cache,
+  and mutates through the same API from the browser. It re-declares the API
+  types by hand in `frontend/types/`.
+- **Layered backend.** Each resource is a folder with four files: `route`
+  (paths), `controller` (HTTP in, JSON out), `service` (every Prisma call and
+  every business rule), `validator` (Zod request shapes). Validation failures
+  are 422, missing rows 404, refused rules 409, all through one error handler.
+- **Rules live in the service, not the database.** The two business rules
+  (skill-gated assignment, all-subtasks-done completion) span join tables and
+  cannot be expressed as constraints, so `tasks.service.ts` enforces them on
+  every write path and says why in the 409 body (`missingSkills`,
+  `unfinishedSubtasks`). The frontend mirrors both rules to disable the
+  offending option up front; the server stays the authority.
+- **Subtasks as a self-relation.** `Task.parentId` points at the parent, with
+  cascade delete. Depth and breadth are capped by constants duplicated in both
+  apps. A task tree is created in one transaction from one nested body; the
+  list endpoint stays flat and the client rebuilds the tree.
+- **LLM inference is a best-effort step inside create.** Nodes sent without
+  skills are classified by Gemini using structured output constrained to an
+  enum of the skill names that exist in the database, then re-validated with
+  Zod. Any failure (no key, timeout, quota, off-shape reply) logs a warning and
+  leaves the node without skills; a create never fails because of the model.
+- **Configuration is validated at boot** (`backend/src/lib/env.ts`), and every
+  request carries an `X-Request-Id` that all of its log lines share.
+
+## API
+
+Base URL `http://localhost:4000`. Bodies are JSON. Errors are
+`{ "error": string, "details"?: object }` at the status listed.
+
+| Method | Path | Body | Success | Errors |
+| --- | --- | --- | --- | --- |
+| `GET` | `/health` | | `200 { status, uptime }` | |
+| `GET` | `/api/tasks` | | `200 { tasks: Task[] }` flat, newest first | |
+| `GET` | `/api/tasks/:id` | | `200 { task }` | 404; 422 bad uuid |
+| `POST` | `/api/tasks` | `CreateTask` (below) | `201 { task }` root row | 409 rule refused; 422 invalid body or unknown skill/developer |
+| `PATCH` | `/api/tasks/:id` | `{ assigneeId: uuid \| null }` | `200 { task }` | 404; 409 `details.missingSkills`; 422 |
+| `PATCH` | `/api/tasks/:id/status` | `{ status: "todo" \| "in_progress" \| "done" }` | `200 { task }` | 404; 409 `details.unfinishedSubtasks`; 422 |
+| `GET` | `/api/developers` | | `200 { developers: Developer[] }` with `skills` | |
+| `GET` | `/api/developers/:id` | | `200 { developer }` | 404; 422 |
+| `GET` | `/api/skills` | | `200 { skills: Skill[] }` | |
+| `GET` | `/api/skills/:id` | | `200 { skill }` | 404; 422 |
+
+`Task` is `{ id, title, description, status, assigneeId, parentId, createdAt,
+updatedAt, assignee: Developer | null, requiredSkills: Skill[] }`. Only
+`assigneeId` and `status` can change after creation, each through its own
+route. Unknown fields in any body are rejected with a 422.
+
+`CreateTask`, recursive through `subtasks`:
+
+```json
+{
+  "title": "As a visitor, I want a responsive homepage",
+  "description": "optional",
+  "status": "todo",
+  "assigneeId": null,
+  "requiredSkillIds": [],
+  "subtasks": [{ "title": "Build the layout", "requiredSkillIds": ["<skill uuid>"] }]
+}
+```
+
+Omit or empty `requiredSkillIds` on any node and the server infers them from
+the title with Gemini (when `GEMINI_API_KEY` is set). The assignment rule is
+then judged against the inferred skills, so an `assigneeId` on a skill-less
+node can still be refused with a 409. Limits: 4 levels of nesting, 20 direct
+subtasks per task, 50 tasks per create, each a 422 with the limit in
+`details`. Reopening a `done` task (to `todo` or `in_progress`) also reopens
+every `done` ancestor to `in_progress` in the same transaction.
+
+```sh
+curl -s localhost:4000/api/tasks -H 'content-type: application/json' \
+  -d '{"title":"As a visitor, I want to see a responsive homepage"}'
+# 201 {"task":{..., "requiredSkills":[{"name":"Frontend", ...}]}}
+```
+
+## Dependencies and why
+
+Backend:
+
+| Package | Why |
+| --- | --- |
+| `express` 5 | Minimal, well-known HTTP framework; v5 forwards rejected promises to the error handler, so async controllers need no wrapper. |
+| `@prisma/client`, `prisma`, `@prisma/adapter-pg` | Schema-first ORM: one `schema.prisma` yields migrations, a typed client, and the types the services return. The pg adapter is how Prisma 7 connects to Postgres. |
+| `zod` | Request validation with inferred TypeScript types and readable field errors. Also converts to the JSON Schema sent to Gemini, so the model is constrained by the same definition its reply is checked against. |
+| `@google/genai` | Google's official Gemini SDK with structured-output support. Gemini was chosen for its free tier, as the brief suggests. |
+| `http-errors` | Errors that carry their HTTP status, so services throw and one handler responds. |
+| `helmet` | Standard security headers; hides `X-Powered-By`. |
+| `cors` | Allows only the configured frontend origin(s). |
+| `winston` | Levelled logging with a per-request child logger. |
+
+Frontend:
+
+| Package | Why |
+| --- | --- |
+| `next` 16, `react` 19 | React framework with server components: the first paint is server-rendered with real data, the rest behaves as a normal SPA. |
+| `@tanstack/react-query` | Server-state cache hydrated from the server prefetch; optimistic updates with rollback for the two mutations. |
+| `react-hook-form` | Uncontrolled form state; `useFieldArray` makes the recursive subtask form cheap to render at any depth. |
+| `nuqs` | Type-safe URL search-param state, so the active filter and the open task are shareable links. |
+| `tailwindcss` 4, `radix-ui`, shadcn/ui (`class-variance-authority`, `cmdk`, `cn`, `lucide-react`, `tw-animate-css`) | Utility CSS plus accessible headless primitives; shadcn components are copied into `components/ui/` and owned by the repo. |
+| `sonner` | Toasts for mutation results and errors. |
+
+Tooling: Bun as runtime, package manager and test runner for both workspaces;
+strict TypeScript in both; ESLint (`eslint-config-next`) on the frontend.
 
 ## Further reading
 

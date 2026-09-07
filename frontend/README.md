@@ -72,4 +72,12 @@ edits to preserve.
 
 ## Tests
 
-None. `bun run lint` and `bun run typecheck` are the checks.
+```sh
+bun test            # from this directory; or `bun run test` from the root
+```
+
+One pure suite, `app/_components/task-ui.test.ts`, covering the helpers that
+turn the flat task list into a tree and mirror the server's rules
+(`flattenTree`, `childrenOf`, `ancestorsOf`, `hasUnfinishedSubtasks`, skill
+matching). No DOM, no network. Components are covered by `bun run lint` and
+`bun run typecheck` only.

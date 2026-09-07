@@ -20,7 +20,7 @@ bun --filter backend db:migrate    # Prisma migrate dev; db:seed, db:studio, db:
 bun dev                            # both apps; dev:backend / dev:frontend for one
 bun run typecheck                  # tsc --noEmit in both workspaces
 bun run lint                       # eslint, frontend only
-bun run test                       # backend only; needs a running, seeded database
+bun run test                       # both workspaces; backend suite needs a running, seeded database
 bun run build                      # prisma generate + bun build; next build
 ```
 
