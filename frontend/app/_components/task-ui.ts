@@ -8,19 +8,16 @@ import {
 
 export const STATUSES: TaskStatus[] = [
   TaskStatus.Todo,
-  TaskStatus.InProgress,
   TaskStatus.Done,
 ];
 
 export const STATUS_LABEL: Record<TaskStatus, string> = {
   [TaskStatus.Todo]: "To do",
-  [TaskStatus.InProgress]: "In progress",
   [TaskStatus.Done]: "Done",
 };
 
 export const STATUS_STYLE: Record<TaskStatus, string> = {
   [TaskStatus.Todo]: "bg-zinc-100 text-zinc-800",
-  [TaskStatus.InProgress]: "bg-blue-100 text-blue-800",
   [TaskStatus.Done]: "bg-emerald-100 text-emerald-800",
 };
 

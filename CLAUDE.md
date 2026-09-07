@@ -78,7 +78,7 @@ then `bun install`, `bun run db:up`, `bun --filter backend db:migrate`,
 ## Domain in one paragraph
 
 Skills and developers are seeded, read-only reference data. A task has a
-title, description, status (`todo | in_progress | done`), optional assignee,
+title, description, status (`todo | done`), optional assignee,
 required skills and an optional parent (subtasks, nested to a capped depth).
 Two rules are enforced in `backend/src/services/tasks/tasks.service.ts`, not
 the database: a task may only be assigned to a developer holding every

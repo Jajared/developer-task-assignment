@@ -35,7 +35,7 @@ owns `inferRequiredSkillIds()`.
   schema. Run the CLI through package scripts so Bun loads `.env`.
 - Generated model types are suffixed: `TaskModel`, from `generated/prisma/models.ts`.
   Enums are const objects with lowercase keys from `generated/prisma/enums.ts`
-  (`TaskStatus.in_progress`).
+  (`TaskStatus.done`).
 - Relations are loaded with inline `include` on each query; there is no shared
   select constant.
 - Keep `prisma` pinned to `^7` — a bare `bun add -d prisma` picks an `8.x` prerelease.
@@ -80,7 +80,7 @@ doesn't exist · 409 a rule refused a valid request. Two rules, both in
   `details.missingSkills: [{ id, name }]`.
 - **Completion** (`assertCompletable`): a task may be `done` only when every
   direct subtask is. Response `details.unfinishedSubtasks: [{ id?, title, status }]`.
-  Reopening a `done` task reopens every `done` ancestor to `in_progress` in the
+  Reopening a `done` task reopens every `done` ancestor to `todo` in the
   same transaction; the client gets back only the row it changed.
 
 Any new write path must run the same checks.

@@ -26,7 +26,7 @@ export const taskSearchParams = {
 /**
  * URL state for the task list, so a view can be linked to or reloaded:
  *
- * - `?filter=in_progress` — the active list filter. `all` is the default and
+ * - `?filter=done` — the active list filter. `all` is the default and
  *   is dropped from the URL; unknown values fall back to `all`.
  * - `?task=<id>` — the task open in the detail panel, absent when closed.
  *

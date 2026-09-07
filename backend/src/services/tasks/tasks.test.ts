@@ -21,7 +21,7 @@ type Developer = { id: string; name: string; skills: Skill[] };
 type Task = {
   id: string;
   title: string;
-  status: "todo" | "in_progress" | "done";
+  status: "todo" | "done";
   assigneeId: string | null;
   parentId: string | null;
   requiredSkills: Skill[];
@@ -101,7 +101,7 @@ describe("completion rule: a task is done only when every direct subtask is done
   test("PATCH /:id/status refuses done while subtasks are open, naming each one", async () => {
     const a = unique("open A");
     const b = unique("open B");
-    const root = await createTree({ title: unique("parent"), subtasks: [{ title: a }, { title: b, status: "in_progress" }] });
+    const root = await createTree({ title: unique("parent"), subtasks: [{ title: a }, { title: b }] });
 
     const refused = await setStatus(root.id, "done");
     expect(refused.status).toBe(409);
@@ -167,7 +167,7 @@ describe("completion rule: a task is done only when every direct subtask is done
 });
 
 describe("reopening: moving a done task back open reopens every done ancestor", () => {
-  test("a reopened grandchild sets its done parent and grandparent to in_progress in one call", async () => {
+  test("a reopened grandchild sets its done parent and grandparent to todo in one call", async () => {
     const child = unique("child");
     const grandchild = unique("grandchild");
     const root = await createTree({
@@ -180,8 +180,8 @@ describe("reopening: moving a done task back open reopens every done ancestor", 
     expect(reopened.status).toBe(200);
     expect(reopened.body.task.status).toBe("todo");
 
-    expect((await findByTitle(child)).status).toBe("in_progress");
-    expect((await api<{ task: Task }>("GET", `/api/tasks/${root.id}`)).body.task.status).toBe("in_progress");
+    expect((await findByTitle(child)).status).toBe("todo");
+    expect((await api<{ task: Task }>("GET", `/api/tasks/${root.id}`)).body.task.status).toBe("todo");
   });
 
   test("the walk stops at the first ancestor that is already open", async () => {
@@ -193,10 +193,10 @@ describe("reopening: moving a done task back open reopens every done ancestor", 
       subtasks: [{ title: child, status: "done", subtasks: [{ title: grandchild, status: "done" }] }],
     });
 
-    expect((await setStatus((await findByTitle(grandchild)).id, "in_progress")).status).toBe(200);
+    expect((await setStatus((await findByTitle(grandchild)).id, "todo")).status).toBe(200);
 
-    expect((await findByTitle(child)).status).toBe("in_progress");
-    // Already open; must not be touched (it stays `todo`, not bumped to `in_progress`).
+    expect((await findByTitle(child)).status).toBe("todo");
+    // Already open; must not be touched.
     expect((await api<{ task: Task }>("GET", `/api/tasks/${root.id}`)).body.task.status).toBe("todo");
   });
 

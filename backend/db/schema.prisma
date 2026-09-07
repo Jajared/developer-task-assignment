@@ -14,7 +14,6 @@ datasource db {
 // column values and the API contract stay in sync.
 enum TaskStatus {
   todo
-  in_progress
   done
 }
 

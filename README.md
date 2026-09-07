@@ -18,7 +18,7 @@ the host.
 
 ## Features
 
-- **Task list** with filters (all, to do, in progress, done, unassigned),
+- **Task list** with filters (all, to do, done, unassigned),
   rendered as a tree of tasks and subtasks. Table on desktop, cards on mobile.
 - **Create tasks with nested subtasks** in one form, written in one transaction.
 - **Skill-gated assignment.** A task can only be assigned to a developer who
@@ -273,7 +273,7 @@ Base URL `http://localhost:4000`. Bodies are JSON. Errors are
 | `GET` | `/api/tasks/:id` | | `200 { task }` | 404; 422 bad uuid |
 | `POST` | `/api/tasks` | `CreateTask` (below) | `201 { task }` root row | 409 rule refused; 422 invalid body or unknown skill/developer |
 | `PATCH` | `/api/tasks/:id` | `{ assigneeId: uuid \| null }` | `200 { task }` | 404; 409 `details.missingSkills`; 422 |
-| `PATCH` | `/api/tasks/:id/status` | `{ status: "todo" \| "in_progress" \| "done" }` | `200 { task }` | 404; 409 `details.unfinishedSubtasks`; 422 |
+| `PATCH` | `/api/tasks/:id/status` | `{ status: "todo" \| "done" }` | `200 { task }` | 404; 409 `details.unfinishedSubtasks`; 422 |
 | `GET` | `/api/developers` | | `200 { developers: Developer[] }` with `skills` | |
 | `GET` | `/api/developers/:id` | | `200 { developer }` | 404; 422 |
 | `GET` | `/api/skills` | | `200 { skills: Skill[] }` | |
@@ -302,8 +302,8 @@ the title with Gemini (when `GEMINI_API_KEY` is set). The assignment rule is
 then judged against the inferred skills, so an `assigneeId` on a skill-less
 node can still be refused with a 409. Limits: 4 levels of nesting, 20 direct
 subtasks per task, 50 tasks per create, each a 422 with the limit in
-`details`. Reopening a `done` task (to `todo` or `in_progress`) also reopens
-every `done` ancestor to `in_progress` in the same transaction.
+`details`. Reopening a `done` task (to `todo`) also reopens
+every `done` ancestor to `todo` in the same transaction.
 
 ```sh
 curl -s localhost:4000/api/tasks -H 'content-type: application/json' \

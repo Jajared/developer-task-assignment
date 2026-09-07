@@ -334,7 +334,7 @@ export async function updateTaskStatus(id: string, data: TUpdateTaskStatus) {
       if (parent.status !== TaskStatus.done) break;
       await tx.task.update({
         where: { id: parentId },
-        data: { status: TaskStatus.in_progress },
+        data: { status: TaskStatus.todo },
       });
       reopenedAncestorIds.push(parentId);
       parentId = parent.parentId;

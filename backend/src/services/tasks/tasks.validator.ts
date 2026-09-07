@@ -39,7 +39,7 @@ const taskFieldsSchema = z
       .max(2000, "Description must be at most 2000 characters")
       .nullish(),
     status: z
-      .nativeEnum(TaskStatus, { message: "Status must be todo, in_progress or done" })
+      .nativeEnum(TaskStatus, { message: "Status must be todo or done" })
       .default(TaskStatus.todo),
     assigneeId: z.string().uuid("Assignee must be a developer id").nullish(),
     requiredSkillIds: z
@@ -106,7 +106,7 @@ const updateTaskSchema = z
 /** Body for the dedicated status route, where only the status may change. */
 const updateTaskStatusSchema = z
   .object({
-    status: z.nativeEnum(TaskStatus, { message: "Status must be todo, in_progress or done" }),
+    status: z.nativeEnum(TaskStatus, { message: "Status must be todo or done" }),
   })
   .strict();
 

@@ -51,7 +51,7 @@ Single-page app. Route-private code lives in `app/_components` and
 - **`types/` is hand-maintained.** It duplicates the backend contract derived
   from `backend/db/schema.prisma`; nothing checks agreement. One file per
   domain plus `api.ts`; import through the `@/types` barrel. Enum values are
-  the DB's lowercase strings under PascalCase keys (`TaskStatus.InProgress`).
+  the DB's lowercase strings under PascalCase keys (`TaskStatus.Done`).
   Verify against a live response, not a backend type — the backend has none.
 - **Path alias `@/*`** maps to the app root; imports omit extensions (unlike
   the backend).

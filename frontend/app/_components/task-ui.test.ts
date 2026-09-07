@@ -143,10 +143,6 @@ describe("hasUnfinishedSubtasks (mirrors the server's completion rule)", () => {
     expect(hasUnfinishedSubtasks(task("c"), list)).toBe(true);
   });
 
-  test("in_progress counts as unfinished", () => {
-    const list = [task("p"), task("c", "p", TaskStatus.InProgress)];
-    expect(hasUnfinishedSubtasks(task("p"), list)).toBe(true);
-  });
 });
 
 describe("ancestorsOf", () => {
