@@ -12,8 +12,8 @@ db/
   migrations/          # the initial migration lives here
 prisma.config.ts       # schema path, migrations path, seed cmd, DATABASE_URL
 src/
-  index.ts             # the Express app: middleware, /health, routers, error
-                       # handler, listen; $disconnect on SIGINT/SIGTERM
+  app.ts               # createApp(): middleware, /health, routers, 404, error handler
+  index.ts             # listens on createApp(); $disconnect on SIGINT/SIGTERM
   db/prisma.ts         # PrismaClient singleton, cached on globalThis for --watch
   generated/prisma/    # generated client — GITIGNORED, never edit, never commit
   lib/env.ts           # every process.env read, parsed once with a Zod schema; boot fails naming any bad variable
@@ -33,9 +33,7 @@ src/
 
 Three services: `tasks/` (create, read, assign, set status — no delete), `developers/` and `skills/` (read-only —
 both are seeded reference data, and there are no write routes for them).
-`/health` is deliberately *not* a service — it's three lines in `index.ts`.
-
-There are no test files at the moment.
+`/health` is deliberately *not* a service — it's three lines in `app.ts`.
 
 ## Prisma 7 gotchas
 
@@ -109,7 +107,7 @@ These cost real time if you don't know them:
   number: `new NotFound("Task not found")`, `new UnprocessableEntity(...)`,
   `new Conflict(...)`. They take only a message, so attach machine-readable
   context with `Object.assign(new Conflict(message), { details })`.
-  The error handler in `index.ts` sends `{ error, details }` at `err.status`
+  The error handler in `app.ts` sends `{ error, details }` at `err.status`
   for anything `isHttpError()` with `expose` true (every 4xx, including the
   400 body-parser raises for bad JSON); anything else is a bug and becomes a
   500. Never throw a 4xx for one.
@@ -170,7 +168,7 @@ These cost real time if you don't know them:
 201 on create, 404 for a missing row, 422 for a Zod failure
 (not 400 — the body parsed, it just failed the schema) and for a body naming a
 row that doesn't exist. The JSON 404 fallback and the 500 handler are in
-`index.ts`.
+`app.ts`.
 
 **409 is the interesting one.** A task may only be assigned to a developer who
 holds every skill it requires. That rule lives in `assertAssignable()` in
@@ -290,12 +288,22 @@ timestamps, `requiredSkills` entries carry theirs.
 
 ## Testing
 
-**There are no tests right now** — they were removed to be written later, so
-`bun test` runs nothing. When they come back, drive the running server over
-HTTP (`bun dev`, then `fetch` against `PORT`) — `index.ts` binds the port on
-import, so it can't be required into a test without starting it. If that
-becomes a nuisance, split a `createApp()` back out of `index.ts`.
+`bun test` (the package script sets `NODE_ENV=test` and blanks
+`GEMINI_API_KEY`, so logs are silent and no fixture ever reaches the LLM).
+Two suites, both next to the code they cover:
 
-When they come back: they **need a running database** and share one, so don't
-assert on absolute row counts, and read the seeded skills/developers from the
-API rather than hardcoding names or ids.
+- `tasks.validator.test.ts` — pure. The size caps on a create body
+  (`MAX_SUBTASKS_PER_TASK`, `MAX_TASKS_PER_CREATE`) and the defaults.
+- `tasks.test.ts` — HTTP, **needs a running, seeded database**
+  (`bun run db:up`, `db:migrate`, `db:seed`). `beforeAll` binds
+  `createApp().listen(0)` in-process and drives it with `fetch`; it covers the
+  completion rule (status route and create path), reopening of done
+  ancestors, the assignment rule (create and reassign, plus the 422s for
+  unknown rows) and the depth cap.
+
+Conventions for the HTTP suite: read skills and developers from the API and
+pick fixtures by shape (a one-skill developer, a skill they lack), never by
+seeded name or id; suffix every title with `unique()` so rows can be found in
+the shared table; create trees through `createTree()`, which registers the
+root so `afterAll` can `deleteMany` it (cascade removes the subtasks) and
+leave the database as it was. Don't assert on absolute row counts.

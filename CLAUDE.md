@@ -17,7 +17,8 @@ bun install            # postinstall in backend regenerates the Prisma client
 bun run db:up          # start Postgres (docker compose); db:down, db:logs
 bun dev                # both apps; dev:backend / dev:frontend for one
 bun run typecheck      # tsc --noEmit in both
-bun test               # backend suite only — needs a running database
+bun run test           # backend suite only — needs a running database. `run` matters:
+                       # bare `bun test` starts from the root and never loads backend/.env
 bun run lint           # frontend only (eslint)
 bun run build          # prisma generate + bun build; next build
 ```

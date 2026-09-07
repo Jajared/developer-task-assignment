@@ -68,7 +68,7 @@ Root scripts fan out to both workspaces:
 | `bun dev` | Runs backend and frontend together |
 | `bun dev:backend` / `bun dev:frontend` | Runs just one |
 | `bun run build` | Generates the client + bundles the backend, builds the frontend |
-| `bun test` | Runs the backend test suite (needs a database) |
+| `bun run test` | Runs the backend test suite (needs a database; bare `bun test` skips `backend/.env`) |
 | `bun run typecheck` | Typechecks both apps |
 | `bun run lint` | ESLint on the frontend |
 

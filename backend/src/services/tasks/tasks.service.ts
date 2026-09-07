@@ -1,4 +1,4 @@
-import { Conflict, NotFound, UnprocessableEntity, type HttpError } from "http-errors";
+import { Conflict, NotFound, UnprocessableEntity } from "http-errors";
 
 import { prisma } from "@/db/prisma.ts";
 import { MAX_SUBTASK_DEPTH } from "@/lib/constants.ts";
@@ -6,20 +6,6 @@ import { getLogger } from "@/lib/log.ts";
 import { TaskStatus } from "@/generated/prisma/enums.ts";
 import * as skillService from "@/services/skills/skills.service.ts";
 import type { TCreateTask, TUpdateTask, TUpdateTaskStatus } from "./tasks.validator.ts";
-
-/** The relations every task response carries, written once and reused. */
-const taskInclude = {
-  assignee: true,
-  requiredSkills: { orderBy: { name: "asc" } },
-} as const;
-
-/** A transaction client or the plain client — the tree create takes either. */
-type Db = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
-
-/** No task with that id — the same 404 wherever a task is looked up. */
-function taskNotFound(): HttpError {
-  return new NotFound("Task not found");
-}
 
 /**
  * The rows a task body points at must exist before anything else is judged:
@@ -182,7 +168,11 @@ async function fillInferredSkills(task: TCreateTask): Promise<TCreateTask> {
 }
 
 /** Writes one task and, recursively, its subtasks under it. Returns the root id. */
-async function createTree(db: Db, task: TCreateTask, parentId: string | null): Promise<string> {
+async function createTree(
+  db: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
+  task: TCreateTask,
+  parentId: string | null,
+): Promise<string> {
   const row = await db.task.create({
     data: {
       title: task.title,
@@ -211,14 +201,17 @@ async function createTree(db: Db, task: TCreateTask, parentId: string | null): P
 
 export async function listTasks() {
   return prisma.task.findMany({
-    include: taskInclude,
+    include: { assignee: true, requiredSkills: { orderBy: { name: "asc" } } },
     orderBy: { createdAt: "desc" },
   });
 }
 
 export async function findTaskById(id: string) {
-  const row = await prisma.task.findUnique({ where: { id }, include: taskInclude });
-  if (!row) throw taskNotFound();
+  const row = await prisma.task.findUnique({
+    where: { id },
+    include: { assignee: true, requiredSkills: { orderBy: { name: "asc" } } },
+  });
+  if (!row) throw new NotFound("Task not found");
 
   return row;
 }
@@ -247,7 +240,10 @@ export async function createTask(input: TCreateTask) {
 
   const task = await prisma.$transaction(async (tx) => {
     const id = await createTree(tx, data, null);
-    return tx.task.findUniqueOrThrow({ where: { id }, include: taskInclude });
+    return tx.task.findUniqueOrThrow({
+      where: { id },
+      include: { assignee: true, requiredSkills: { orderBy: { name: "asc" } } },
+    });
   });
 
   getLogger().info("Task created", {
@@ -274,7 +270,7 @@ export async function updateTask(id: string, data: TUpdateTask) {
     where: { id },
     select: { assigneeId: true, requiredSkills: { select: { id: true } } },
   });
-  if (!current) throw taskNotFound();
+  if (!current) throw new NotFound("Task not found");
 
   await assertAssignable(
     data.assigneeId,
@@ -284,7 +280,7 @@ export async function updateTask(id: string, data: TUpdateTask) {
   const task = await prisma.task.update({
     where: { id },
     data: { assigneeId: data.assigneeId },
-    include: taskInclude,
+    include: { assignee: true, requiredSkills: { orderBy: { name: "asc" } } },
   });
 
   getLogger().info(data.assigneeId ? "Task assigned" : "Task unassigned", {
@@ -313,7 +309,7 @@ export async function updateTaskStatus(id: string, data: TUpdateTaskStatus) {
       subtasks: { select: { id: true, title: true, status: true }, orderBy: { createdAt: "asc" } },
     },
   });
-  if (!current) throw taskNotFound();
+  if (!current) throw new NotFound("Task not found");
 
   const status: TaskStatus = data.status;
   assertCompletable(status, current.subtasks);
@@ -323,7 +319,11 @@ export async function updateTaskStatus(id: string, data: TUpdateTaskStatus) {
   const reopenedAncestorIds: string[] = [];
 
   const row = await prisma.$transaction(async (tx) => {
-    const row = await tx.task.update({ where: { id }, data: { status }, include: taskInclude });
+    const row = await tx.task.update({
+      where: { id },
+      data: { status },
+      include: { assignee: true, requiredSkills: { orderBy: { name: "asc" } } },
+    });
 
     let parentId = reopening ? current.parentId : null;
     while (parentId) {
