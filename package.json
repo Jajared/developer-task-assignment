@@ -11,7 +11,7 @@
     "dev:backend": "bun --filter backend dev",
     "dev:frontend": "bun --filter frontend dev",
     "docker:up": "docker compose up --build -d",
-    "docker:migrate": "docker compose run --rm backend sh -c 'bun run db:deploy && bun run db:seed'",
+    "docker:migrate": "docker compose run --rm migrate",
     "docker:stop": "docker compose stop",
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f",

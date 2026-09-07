@@ -13,8 +13,8 @@ itself — never add `dotenv`.
 
 ```sh
 bun install                        # postinstall regenerates the Prisma client
-bun run docker:up                  # whole stack via docker compose (docker:stop, docker:down, docker:logs)
-bun run docker:migrate             # REQUIRED after docker:up: migrate + seed inside the stack
+bun run docker:up                  # whole stack incl. one-shot migrate+seed (docker:stop, docker:down, docker:logs)
+bun run docker:migrate             # re-run migrate + seed alone; `up` already does it
 bun run db:up                      # Postgres only, for host dev (db:down, db:logs)
 bun --filter backend db:migrate    # Prisma migrate dev; db:seed, db:studio, db:reset
 bun dev                            # both apps; dev:backend / dev:frontend for one
@@ -28,6 +28,11 @@ bun run build                      # prisma generate + bun build; next build
 are backend scripts (Prisma) — run them with `bun --filter backend`. Use
 `bun run test`, not bare `bun test` from the root: the latter never loads
 `backend/.env`.
+
+CI (`.github/workflows/ci.yml`) runs frozen install, `typecheck`, `lint`,
+`db:deploy` + `db:seed` against a Postgres service, then `test` on pushes to
+`main` and PRs. Env vars live in the workflow's `env` block; a new required
+variable must be added there too. No deployment step.
 
 ## Type drift is the main hazard
 
@@ -60,8 +65,8 @@ All `.env.example` files are committed; real `.env` files are gitignored.
   time (browser URL). In Docker the server-side URL is `API_URL`
   (`http://backend:4000`), read at runtime in `frontend/lib/api.ts`.
 
-Docker: `backend/Dockerfile` (oven/bun, serves only; containers never migrate,
-`docker:migrate` runs `db:deploy` + `db:seed` in that image) and `frontend/Dockerfile` (Bun installs,
+Docker: `backend/Dockerfile` (oven/bun; the `backend` container only serves,
+the `migrate` service runs `db:deploy` + `db:seed` in the same image before it) and `frontend/Dockerfile` (Bun installs,
 `next build` runs under Node because Bun 1.3 segfaults on it in Linux;
 `output: "standalone"` served by node:22-slim). Both build with the repo root
 as context.

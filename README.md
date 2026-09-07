@@ -11,9 +11,10 @@ Bun workspace monorepo with two apps:
 | `backend/` | Express 5 on Bun, Prisma 7, Postgres, Zod, Winston, Google Gemini | 4000 |
 | `frontend/` | Next.js 16 App Router, React 19, Tailwind 4, shadcn/ui, TanStack Query | 3000 |
 
-Everything runs in Docker via `docker-compose.yml` (Postgres, migrations,
-backend, frontend). For development, run only Postgres in Docker and both apps
-on the host.
+Everything runs in Docker via `docker-compose.yml` (Postgres, a one-shot
+migrate+seed job, backend, frontend); `docker compose up --build` is the only
+command needed. For development, run only Postgres in Docker and both apps on
+the host.
 
 ## Features
 
@@ -30,34 +31,67 @@ on the host.
   Optional: without an API key, tasks simply keep no skills.
 - **Shareable views.** The active filter and open task live in the URL.
 
+## Prerequisites
+
+There are two ways to run the app. Pick one; the Docker path needs the least.
+
+| To… | You need | Notes |
+| --- | --- | --- |
+| Run the whole app in Docker (recommended for evaluation) | [Docker](https://docs.docker.com/get-docker/) with Compose v2 (Docker Desktop 4.x, or Docker Engine 20.10+ with the `docker compose` plugin) | Nothing else. Bun, Node and npm are not needed on the host; the images bring their own runtimes. |
+| Develop on the host | [Bun](https://bun.sh) 1.3+ and Docker (for Postgres only) | Bun is the runtime, package manager and test runner for both workspaces. |
+| Enable LLM skill inference (optional) | A Google AI Studio API key in `GEMINI_API_KEY` | Free tier works. Without a key, tasks created with no skills simply keep none. |
+
+Installing Bun. If you already have Node.js and npm, the quickest way is:
+
+```sh
+npm install -g bun
+bun --version        # 1.3 or later
+```
+
+Otherwise use the official installer (`curl -fsSL https://bun.sh/install | bash`
+on macOS/Linux, `powershell -c "irm bun.sh/install.ps1 | iex"` on Windows).
+
+Why not `npm run` directly: the backend runs its TypeScript source natively on
+Bun (`.ts` imports, `@/` path aliases, `bun --watch`), the lockfile is
+`bun.lock`, and every script in the repo is a Bun command. Node.js and npm can
+install Bun but cannot substitute for it. If Bun is not an option, use the
+Docker path, which needs neither.
+
 ## Getting started
 
 ### Run everything in Docker
 
-Prerequisites: Docker with Compose v2.
+Needs only Docker (see Prerequisites); Bun is not required on the host.
 
 ```sh
 cp .env.example .env                 # Postgres credentials (+ optional GEMINI_API_KEY)
-bun run docker:up                    # build images, start postgres, backend, frontend
-bun run docker:migrate               # REQUIRED: apply migrations and seed the database
+docker compose up --build -d         # postgres → migrate + seed → backend → frontend
 ```
 
-Open http://localhost:3000.
+Open http://localhost:3000. The `migrate` service applies the migrations and
+seeds the developers and skills before the backend starts, so the app is
+usable as soon as `up` returns. It re-runs on every `up` and is idempotent.
 
-**Don't skip `docker:migrate`.** The containers do not migrate the database
-themselves (that step is meant to move into CI). Until it has run, the
-backend is up but every `/api` request fails with a missing-table error. Run
-it after the first `docker:up`, after `docker compose down -v`, and after
-pulling a schema change. It is idempotent: applied migrations are skipped and
-the seed only fills what is missing. Under the hood it runs
-`prisma migrate deploy` and `db/seed.ts` inside the backend image against the
-compose network.
+> **Note on convention.** Running migrations from `docker compose up` is a
+> deliberate deviation from the usual CI practice, where migrations are a
+> reviewed, one-time pipeline step and application containers never touch the
+> schema. It is done here so the submission is a single command to evaluate.
+> The backend container itself still never migrates; only the one-shot
+> `migrate` job does, and in a real deployment that job would move to CI.
+
+```sh
+docker compose logs -f               # tail everything
+docker compose down                  # stop and remove containers (add -v to drop the database)
+```
+
+If you have Bun, the same commands exist as root scripts: `bun run docker:up`,
+`docker:logs`, `docker:stop`, `docker:down`, and `docker:migrate` to re-run
+the migrate job on its own.
 
 Compose builds `backend/Dockerfile` and `frontend/Dockerfile`, then starts
-Postgres, the backend on :4000 and the frontend on :3000, each gated on the
-previous being healthy. Ports 3000, 4000 and 5432 must be free on the host (stop `bun dev`
-first). `bun run docker:logs` tails everything; `bun run docker:down` stops it
-(`docker compose down -v` also drops the database).
+Postgres, the migrate job, the backend on :4000 and the frontend on :3000,
+each gated on the previous being healthy or finished. Ports 3000, 4000 and
+5432 must be free on the host (stop `bun dev` first).
 
 Inside the compose network the frontend's server components call the API at
 `http://backend:4000` (`API_URL`, runtime), while the browser calls
@@ -69,7 +103,7 @@ format as development).
 
 ### Develop on the host
 
-Prerequisites: [Bun](https://bun.sh) 1.3+, Docker.
+Needs Bun and Docker (see Prerequisites).
 
 ```sh
 bun install                          # also generates the Prisma client
@@ -100,7 +134,7 @@ Root scripts (run from the repo root):
 | --- | --- |
 | `bun run docker:up` / `docker:logs` | Build and run / tail the whole stack in Docker |
 | `bun run docker:stop` / `docker:down` | Stop the containers (keep them) / remove containers and network (`-v` also drops the database) |
-| `bun run docker:migrate` | Apply migrations and seed inside the Docker stack (required after `docker:up`) |
+| `bun run docker:migrate` | Re-run the migrate + seed job on its own (`up` already runs it) |
 | `bun run db:up` / `db:down` / `db:logs` | Start / stop / tail only the Postgres container |
 | `bun dev` | Run backend and frontend together |
 | `bun dev:backend` / `bun dev:frontend` | Run one app |
@@ -182,6 +216,15 @@ Frontend: one pure suite, `app/_components/task-ui.test.ts`, for the helpers
 that rebuild the tree from the flat list and mirror the server's two rules
 (`flattenTree`, `ancestorsOf`, `hasUnfinishedSubtasks`, skill matching). No
 DOM or network; runs anywhere with `bun test`.
+
+### Continuous integration
+
+`.github/workflows/ci.yml` runs on every push to `main` and every pull
+request: `bun install --frozen-lockfile`, `bun run typecheck`, `bun run lint`,
+then `db:deploy` + `db:seed` against a Postgres service container, then
+`bun run test`. No deployment step yet. Environment comes from the job's `env`
+block (the `.env` files are gitignored), so a new required variable must be
+added there as well as to the `.env.example` files.
 
 ## System design
 
@@ -301,4 +344,3 @@ strict TypeScript in both; ESLint (`eslint-config-next`) on the frontend.
 
 - [`backend/README.md`](backend/README.md) — API details, logging, inference
 - [`frontend/README.md`](frontend/README.md) — app structure, state management
-- `CLAUDE.md` files — conventions for AI-assisted development
