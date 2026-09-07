@@ -1,8 +1,15 @@
 # frontend
 
-The task-assignment UI. Next.js 16 App Router, React 19, Tailwind 4,
-shadcn/ui, TanStack Query, react-hook-form and nuqs. Single page: a filterable
-task list with a detail side panel and a create panel.
+This is a single-page application for managing an engineering backlog. It
+shows every task and its nested subtasks as a filterable tree, opens a side
+panel to view a task, assign it to a developer with the right skills, or mark
+it done, and provides a form for creating a task together with its subtasks in
+one go.
+
+Built with Next.js 16 App Router, React 19, Tailwind 4, shadcn/ui, TanStack
+Query, react-hook-form and nuqs.
+
+![The task list with a task open in the detail panel](../docs/frontend-ui.png)
 
 ## Running
 
@@ -57,18 +64,30 @@ types/              the API contract, hand-maintained; import from `@/types`
 shared package and no check that the two agree. When the Prisma schema
 changes, update the matching file here and verify against a real response.
 
-## shadcn/ui
+A future improvement is to generate these types from an API contract instead,
+such as an OpenAPI spec published by the backend or a shared Zod/tRPC schema,
+so the two sides cannot drift and the types no longer need hand maintenance.
 
-Components are copied into `components/ui/` and are editable. Add more from
-this directory:
+## Reusable UI components using shadcn/ui
+
+The UI is built on [shadcn/ui](https://ui.shadcn.com): accessible Radix primitives styled with Tailwind.
+Components are copied into `components/ui/` and are editable. To add more
+components to this directory:
 
 ```sh
 bunx --bun shadcn@latest add <component>
 ```
 
-The theme is light-only; `globals.css` has no dark tokens. `sonner.tsx` was
-edited to drop `next-themes`. See `CLAUDE.md` for the full list of post-init
-edits to preserve.
+## Dependencies and why
+
+| Package | Why |
+| --- | --- |
+| `next` 16, `react` 19 | React framework with server components: the first paint is server-rendered with real data, the rest behaves as a normal SPA. |
+| `@tanstack/react-query` | Server-state cache hydrated from the server prefetch; optimistic updates with rollback for the two mutations. |
+| `react-hook-form` | Uncontrolled form state; `useFieldArray` makes the recursive subtask form cheap to render at any depth. |
+| `nuqs` | Type-safe URL search-param state, so the active filter and the open task are shareable links. |
+| `tailwindcss` 4, `radix-ui`, shadcn/ui (`class-variance-authority`, `cmdk`, `cn`, `lucide-react`, `tw-animate-css`) | Utility CSS plus accessible headless primitives; shadcn components are copied into `components/ui/` and owned by the repo. |
+| `sonner` | Toasts for mutation results and errors. |
 
 ## Tests
 

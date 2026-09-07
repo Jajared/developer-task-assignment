@@ -1,8 +1,14 @@
 # backend
 
-REST API for the task-assignment app. Express 5 on the Bun runtime, Prisma 7
-over Postgres, Zod request validation, Winston logging, and Google Gemini for
-optional skill inference.
+This is the REST API behind the task-assignment app. It stores skills,
+developers and tasks in Postgres, exposes them as JSON, and enforces the two
+business rules: a task can only be assigned to a developer who holds every
+skill it requires, and can only be marked done once all of its direct subtasks
+are done. When a task is created without required skills, it can optionally ask
+Google Gemini to infer them from the title.
+
+Built with Express 5 on the Bun runtime, Prisma 7, Zod for request validation
+and Winston for logging.
 
 ## Running
 
@@ -66,6 +72,19 @@ src/
   services/         one folder per resource (tasks, developers, skills), each
                     split into route, controller, service and validator
 ```
+
+## Dependencies and why
+
+| Package | Why |
+| --- | --- |
+| `express` 5 | Minimal, well-known HTTP framework; v5 forwards rejected promises to the error handler, so async controllers need no wrapper. |
+| `@prisma/client`, `prisma`, `@prisma/adapter-pg` | Schema-first ORM: one `schema.prisma` yields migrations, a typed client, and the types the services return. The pg adapter is how Prisma 7 connects to Postgres. |
+| `zod` | Request validation with inferred TypeScript types and readable field errors. Also converts to the JSON Schema sent to Gemini, so the model is constrained by the same definition its reply is checked against. |
+| `@google/genai` | Google's official Gemini SDK with structured-output support. Gemini was chosen for its free tier, as the brief suggests. |
+| `http-errors` | Errors that carry their HTTP status, so services throw and one handler responds. |
+| `helmet` | Standard security headers; hides `X-Powered-By`. |
+| `cors` | Allows only the configured frontend origin(s). |
+| `winston` | Levelled logging with a per-request child logger. |
 
 ## Tests
 

@@ -1,5 +1,7 @@
 # task-assignment-app
 
+![The task list with a task open in the detail panel](docs/frontend-ui.png)
+
 A small engineering-backlog tool: tasks are assigned to developers based on
 the skills they hold, can be broken into nested subtasks, and can have their
 required skills inferred from their title by an LLM.
@@ -177,6 +179,9 @@ values.
 
 ## Project structure
 
+The repo is a Bun workspace monorepo: `backend/` and `frontend/` are separate
+packages that share one lockfile and one set of root scripts.
+
 ```
 backend/
   db/schema.prisma          # source of truth for tables and types
@@ -186,6 +191,7 @@ backend/
   src/app.ts                # Express app factory
   src/lib/                  # env, logging, validation, LLM client, constants
   src/services/{tasks,developers,skills}/   # route / controller / service / validator
+  Dockerfile                # oven/bun; serves the API (docker:migrate reuses it)
 frontend/
   app/                      # App Router: page, layout, error boundary
   app/_components/          # task list, detail panel, create form
@@ -193,8 +199,7 @@ frontend/
   components/ui/            # shadcn/ui
   lib/                      # API client, query definitions, constants
   types/                    # hand-maintained copy of the API contract
-backend/Dockerfile          # oven/bun; serves the API (docker:migrate reuses it)
-frontend/Dockerfile         # next build → standalone output on node:22-slim
+  Dockerfile                # next build → standalone output on node:22-slim
 docker-compose.yml          # postgres, backend, frontend
 ```
 
@@ -226,13 +231,9 @@ then `db:deploy` + `db:seed` against a Postgres service container, then
 block (the `.env` files are gitignored), so a new required variable must be
 added there as well as to the `.env.example` files.
 
-## System design
+## Architecture
 
-```
-Browser ──▶ Next.js (frontend :3000) ──▶ Express API (backend :4000) ──▶ Postgres
-              server components prefetch;      Prisma 7 (pg adapter)
-              React Query on the client        └──▶ Google Gemini (skill inference)
-```
+![Browser, Next.js frontend, Express backend, Postgres and the Gemini API](docs/architecture.png)
 
 - **Two services, one contract.** The backend owns the data model
   (`backend/db/schema.prisma`) and exposes JSON over REST. The frontend is one
@@ -311,34 +312,14 @@ curl -s localhost:4000/api/tasks -H 'content-type: application/json' \
 # 201 {"task":{..., "requiredSkills":[{"name":"Frontend", ...}]}}
 ```
 
-## Dependencies and why
+## Tooling and dependencies
 
-Backend:
-
-| Package | Why |
-| --- | --- |
-| `express` 5 | Minimal, well-known HTTP framework; v5 forwards rejected promises to the error handler, so async controllers need no wrapper. |
-| `@prisma/client`, `prisma`, `@prisma/adapter-pg` | Schema-first ORM: one `schema.prisma` yields migrations, a typed client, and the types the services return. The pg adapter is how Prisma 7 connects to Postgres. |
-| `zod` | Request validation with inferred TypeScript types and readable field errors. Also converts to the JSON Schema sent to Gemini, so the model is constrained by the same definition its reply is checked against. |
-| `@google/genai` | Google's official Gemini SDK with structured-output support. Gemini was chosen for its free tier, as the brief suggests. |
-| `http-errors` | Errors that carry their HTTP status, so services throw and one handler responds. |
-| `helmet` | Standard security headers; hides `X-Powered-By`. |
-| `cors` | Allows only the configured frontend origin(s). |
-| `winston` | Levelled logging with a per-request child logger. |
-
-Frontend:
-
-| Package | Why |
-| --- | --- |
-| `next` 16, `react` 19 | React framework with server components: the first paint is server-rendered with real data, the rest behaves as a normal SPA. |
-| `@tanstack/react-query` | Server-state cache hydrated from the server prefetch; optimistic updates with rollback for the two mutations. |
-| `react-hook-form` | Uncontrolled form state; `useFieldArray` makes the recursive subtask form cheap to render at any depth. |
-| `nuqs` | Type-safe URL search-param state, so the active filter and the open task are shareable links. |
-| `tailwindcss` 4, `radix-ui`, shadcn/ui (`class-variance-authority`, `cmdk`, `cn`, `lucide-react`, `tw-animate-css`) | Utility CSS plus accessible headless primitives; shadcn components are copied into `components/ui/` and owned by the repo. |
-| `sonner` | Toasts for mutation results and errors. |
-
-Tooling: Bun as runtime, package manager and test runner for both workspaces;
+Bun as runtime, package manager and test runner for both workspaces;
 strict TypeScript in both; ESLint (`eslint-config-next`) on the frontend.
+
+Why each runtime dependency was chosen is documented per package, in
+[`backend/README.md`](backend/README.md#dependencies-and-why) and
+[`frontend/README.md`](frontend/README.md#dependencies-and-why).
 
 ## Further reading
 
