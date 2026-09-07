@@ -10,7 +10,7 @@ datasource db {
   provider = "postgresql"
 }
 
-// Values mirror the string unions in shared/types/task.ts exactly, so the
+// Values mirror the string unions in frontend/lib/types.ts exactly, so the
 // column values and the API contract stay in sync.
 enum TaskStatus {
   todo
@@ -24,18 +24,49 @@ enum TaskPriority {
   high
 }
 
+/// A capability such as "Frontend" or "Backend". Shared, never owned by one
+/// developer: developers have skills, tasks require them.
+model Skill {
+  id         String      @id @default(uuid()) @db.Uuid
+  name       String      @unique @db.VarChar(50)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  developers Developer[]
+  /// Tasks that cannot be assigned to a developer lacking this skill.
+  tasks      Task[]
+
+  @@index([name])
+}
+
+model Developer {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @db.VarChar(100)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  skills    Skill[]
+  /// Tasks currently assigned to this developer.
+  tasks     Task[]
+
+  @@index([name])
+}
+
 model Task {
-  id          String       @id @default(uuid()) @db.Uuid
-  title       String       @db.VarChar(200)
-  description String?      @db.VarChar(2000)
-  status      TaskStatus   @default(todo)
-  priority    TaskPriority @default(medium)
-  /// Developer the task is assigned to, or null while unassigned.
-  assignee    String?      @db.VarChar(100)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id             String       @id @default(uuid()) @db.Uuid
+  title          String       @db.VarChar(200)
+  description    String?      @db.VarChar(2000)
+  status         TaskStatus   @default(todo)
+  priority       TaskPriority @default(medium)
+  /// Developer the task is assigned to, or null while unassigned. Assignment
+  /// is only allowed when that developer has every skill in `requiredSkills` —
+  /// enforced in tasks.service.ts, not by the database.
+  assigneeId     String?      @db.Uuid
+  assignee       Developer?   @relation(fields: [assigneeId], references: [id], onDelete: SetNull)
+  /// Skills a developer must have to be assigned this task.
+  requiredSkills Skill[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
   // Task lists are read newest-first and filtered by assignee.
   @@index([createdAt])
-  @@index([assignee])
+  @@index([assigneeId])
 }

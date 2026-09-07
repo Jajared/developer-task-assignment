@@ -40,7 +40,14 @@ the same change. Neither `typecheck` nor `lint` will catch it if you don't.
 
 ## Environment
 
-Both apps have a committed `.env.example`; the real `.env` files are gitignored.
+Every `.env.example` is committed; the real `.env` files are gitignored.
+
+- `.env` (repo root) — `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`,
+  `POSTGRES_PORT`. **Only `docker-compose.yml` reads this**, to keep the
+  database credentials out of the committed compose file. Compose uses `${VAR:?}`,
+  so `db:up` fails loudly if it's missing instead of booting with a default
+  password. Copy `.env.example` to `.env` before the first `db:up`, and keep the
+  values in step with `DATABASE_URL` in `backend/.env` — nothing enforces that.
 
 - `backend/.env` — `DATABASE_URL` (required, throws on boot if missing), `PORT`,
   `NODE_ENV`, `CORS_ORIGINS`. The default `DATABASE_URL` already matches the
@@ -49,11 +56,9 @@ Both apps have a committed `.env.example`; the real `.env` files are gitignored.
 
 ## State of the repo
 
-Not yet done, so don't assume otherwise:
-
-- `backend/db/migrations/` **does not exist yet** — no migration has been
-  generated and the schema has never been applied to a database. First run
-  needs `bun run db:up && bun --filter backend db:migrate`.
+- `backend/db/migrations/` holds the initial migration (Skill, Developer, Task
+  and the two join tables). A fresh checkout needs
+  `cp .env.example .env && bun run db:up`, then `bun --filter backend db:migrate`.
 - The test suite has never run against Prisma. It needs a live database.
 
 See `backend/CLAUDE.md` and `frontend/CLAUDE.md` for per-app conventions.
