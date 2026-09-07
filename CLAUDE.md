@@ -57,9 +57,11 @@ Every `.env.example` is committed; the real `.env` files are gitignored.
 ## State of the repo
 
 - `backend/db/migrations/` holds the initial migration (Skill, Developer, Task
-  and the two join tables), `add_task_due_date` (nullable `Task.dueDate`,
-  a DATE) and `add_task_subtasks` (nullable self-referencing `Task.parentId`,
-  cascade on delete, indexed). A fresh checkout needs
+  and the two join tables), `add_task_due_date`, `add_task_subtasks` (nullable
+  self-referencing `Task.parentId`, cascade on delete, indexed) and
+  `remove_task_due_date_and_priority`, which drops `dueDate`, `priority` and
+  the `TaskPriority` enum again — a task is title, description, status,
+  assignee, required skills and parent, matching the brief. A fresh checkout needs
   `cp .env.example .env && bun run db:up`, then `bun --filter backend db:migrate`.
 - The test suite has never run against Prisma. It needs a live database.
 

@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { CreateTaskPanel, type NewTaskInput } from "./create-task-panel";
 import { TaskDetailPanel } from "./task-detail-panel";
 import { TaskTable } from "./task-table";
-import { STATUS_LABEL, ancestorsOf, todayIso } from "./task-ui";
+import { STATUS_LABEL, ancestorsOf } from "./task-ui";
 import { useTaskMutations } from "@/app/_hooks/use-task-mutations";
 import {
   FILTER_VALUES,
@@ -32,10 +32,8 @@ function toCreateInput(input: NewTaskInput): CreateTaskInput {
   return {
     title: input.title,
     description: input.description || null,
-    priority: input.priority,
     assigneeId: input.assigneeId,
     requiredSkillIds: input.skills.map((s) => s.id),
-    dueDate: input.dueDate,
     subtasks: input.subtasks.map(toCreateInput),
   };
 }
@@ -71,7 +69,6 @@ export function TaskManager({ heading, showDescriptions = true }: Props) {
   const [creating, setCreating] = useState(false);
   // Tasks whose subtasks are shown in the list. Collapsed by default.
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
-  const [today] = useState(todayIso);
 
   const tasks = useMemo(() => tasksQuery.data ?? [], [tasksQuery.data]);
   const developers = developersQuery.data ?? [];
@@ -195,7 +192,6 @@ export function TaskManager({ heading, showDescriptions = true }: Props) {
               allTasks={tasks}
               developers={developers}
               selectedId={selected?.id ?? null}
-              today={today}
               showDescriptions={showDescriptions}
               expanded={shown}
               onToggleExpanded={toggleExpanded}

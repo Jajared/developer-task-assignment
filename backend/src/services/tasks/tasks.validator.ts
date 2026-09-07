@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { TaskPriority, TaskStatus } from "@/generated/prisma/enums.ts";
+import { TaskStatus } from "@/generated/prisma/enums.ts";
 import { parseOrThrow } from "@/lib/validate.ts";
 
 /**
@@ -32,20 +32,10 @@ const taskFieldsSchema = z.object({
   status: z
     .nativeEnum(TaskStatus, { message: "Status must be todo, in_progress or done" })
     .default(TaskStatus.todo),
-  priority: z
-    .nativeEnum(TaskPriority, { message: "Priority must be low, medium or high" })
-    .default(TaskPriority.medium),
   assigneeId: z.string().uuid("Assignee must be a developer id").nullish(),
   requiredSkillIds: z
     .array(z.string().uuid("Required skills must be skill ids"))
     .default([]),
-  // A calendar date, sent as YYYY-MM-DD. Stored in a DATE column, so it is
-  // parsed at UTC midnight and comes back the same way.
-  dueDate: z
-    .string()
-    .date("Due date must be YYYY-MM-DD")
-    .nullish()
-    .transform((value) => (value == null ? value : new Date(`${value}T00:00:00.000Z`))),
 });
 
 type TTaskFieldsInput = z.input<typeof taskFieldsSchema>;

@@ -34,7 +34,9 @@ export function SidePanel({
         side="right"
         showCloseButton={false}
         className={cn(
-          "w-105 gap-0 overflow-y-auto p-0 sm:max-w-105",
+          // The Sheet base sets `data-[side=right]:sm:max-w-sm`; the override must
+          // carry the same variant or the base wins on specificity.
+          "w-full gap-0 overflow-y-auto p-0 sm:w-[34rem] data-[side=right]:sm:max-w-[34rem]",
           className,
         )}
       >

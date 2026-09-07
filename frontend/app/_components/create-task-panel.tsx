@@ -5,7 +5,7 @@ import { FormProvider, useForm, useWatch } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { SidePanel } from "@/components/ui/side-panel";
 import { Separator } from "@/components/ui/separator";
-import type { Developer, Skill, TaskPriority } from "@/lib/types";
+import type { Developer, Skill } from "@/lib/types";
 
 import { SubtaskList } from "./subtask-fields";
 import {
@@ -19,8 +19,6 @@ export type NewTaskInput = {
   title: string;
   description: string;
   skills: Skill[];
-  priority: TaskPriority;
-  dueDate: string | null;
   assigneeId: string | null;
   subtasks: NewTaskInput[];
 };
@@ -40,8 +38,6 @@ function toInput(values: TaskFormValues): NewTaskInput {
     title: values.title.trim(),
     description: values.description.trim(),
     skills: values.skills,
-    priority: values.priority,
-    dueDate: values.dueDate || null,
     assigneeId: values.assigneeId,
     subtasks: values.subtasks.map(toInput),
   };
@@ -76,7 +72,6 @@ export function CreateTaskPanel({
       title="New task"
       onClose={onClose}
       header={<h2 className="text-base font-bold">New task</h2>}
-      className="w-[36rem] sm:max-w-[36rem]"
     >
       <FormProvider {...form}>
         <form

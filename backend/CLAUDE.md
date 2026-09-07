@@ -219,7 +219,7 @@ same shape with its own `subtasks`, and the whole tree is written in one
 transaction after both rules have been checked for every node. There is no
 route to attach a subtask to an existing task or to set `parentId` directly.
 
-A task's title, description, priority, due date and required skills are set
+A task's title, description and required skills are set
 once, at creation. After that only two things change: the assignee
 (`PATCH /:id`, body `{ assigneeId }`) and the status (`PATCH /:id/status`).
 Relations are written by id: `assigneeId` and, on create, `requiredSkillIds`. Reads return them nested as `assignee` and

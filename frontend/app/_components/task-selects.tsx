@@ -10,13 +10,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Developer, Skill, TaskPriority, TaskStatus } from "@/lib/types";
+import type { Developer, Skill, TaskStatus } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 import {
-  PRIORITIES,
-  PRIORITY_LABEL,
-  PRIORITY_STYLE,
   STATUSES,
   STATUS_LABEL,
   STATUS_STYLE,
@@ -172,36 +169,6 @@ export function StatusSelect({
             </SelectItem>
           );
         })}
-      </SelectContent>
-    </Select>
-  );
-}
-
-export function PrioritySelect({
-  value,
-  onChange,
-  pill = true,
-  className,
-}: {
-  value: TaskPriority;
-  onChange: (priority: TaskPriority) => void;
-  pill?: boolean;
-  className?: string;
-}) {
-  return (
-    <Select value={value} onValueChange={(v) => onChange(v as TaskPriority)}>
-      <SelectTrigger
-        aria-label="Priority"
-        className={cn(pill && [pillTrigger, PRIORITY_STYLE[value]], className)}
-      >
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {PRIORITIES.map((p) => (
-          <SelectItem key={p} value={p}>
-            {PRIORITY_LABEL[p]}
-          </SelectItem>
-        ))}
       </SelectContent>
     </Select>
   );

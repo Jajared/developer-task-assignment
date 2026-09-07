@@ -10,10 +10,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { TaskPriority, type Developer, type Skill } from "@/lib/types";
+import type { Developer, Skill } from "@/lib/types";
 
 import { SkillPicker } from "./skill-picker";
-import { AssigneeSelect, PrioritySelect } from "./task-selects";
+import { AssigneeSelect } from "./task-selects";
 import { eligibleDevelopers, hasAllSkills } from "./task-ui";
 
 /**
@@ -24,8 +24,6 @@ export type TaskFormValues = {
   title: string;
   description: string;
   skills: Skill[];
-  priority: TaskPriority;
-  dueDate: string;
   assigneeId: string | null;
   subtasks: TaskFormValues[];
 };
@@ -34,8 +32,6 @@ export const emptyTask = (): TaskFormValues => ({
   title: "",
   description: "",
   skills: [],
-  priority: TaskPriority.Medium,
-  dueDate: "",
   assigneeId: null,
   subtasks: [],
 });
@@ -77,8 +73,8 @@ const required = <span className="text-red-400">*</span>;
 const errorText = "text-xs text-red-600";
 
 /**
- * The fields every task has — title, description, required skills, assignee,
- * priority, due date — bound to the form at `path`. Rendered once for the
+ * The fields every task has — title, description, required skills, assignee —
+ * bound to the form at `path`. Rendered once for the
  * root task and once per subtask at any depth.
  */
 export function TaskFormFields({
@@ -193,35 +189,6 @@ export function TaskFormFields({
             />
           )}
         />
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        <div className="flex flex-col gap-1.5">
-          <span className={label}>Priority</span>
-          <Controller
-            control={control}
-            name={`${path}priority` as "priority"}
-            render={({ field }) => (
-              <PrioritySelect
-                value={field.value}
-                onChange={field.onChange}
-                pill={false}
-                className="h-10 w-full"
-              />
-            )}
-          />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor={`${idPrefix}-due`} className={label}>
-            Due date
-          </Label>
-          <Input
-            id={`${idPrefix}-due`}
-            type="date"
-            className="h-10 min-w-0"
-            {...register(`${path}dueDate` as "dueDate")}
-          />
-        </div>
       </div>
     </>
   );

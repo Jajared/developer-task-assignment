@@ -105,7 +105,7 @@ rather than a native query engine, so the connection string is passed to
 
 There is no shared package. The schema's enums are the source of truth:
 
-- The **backend** imports `TaskStatus` / `TaskPriority` from the generated
+- The **backend** imports `TaskStatus` from the generated
   client, so the Zod request schemas in `tasks.validator.ts` reject anything
   the database column would. `tasks.types.ts` holds the row type and the API
   shape (`Date` columns serialized to ISO strings).

@@ -13,14 +13,6 @@ export const TaskStatus = {
 
 export type TaskStatus = (typeof TaskStatus)[keyof typeof TaskStatus];
 
-export const TaskPriority = {
-  Low: "low",
-  Medium: "medium",
-  High: "high",
-} as const;
-
-export type TaskPriority = (typeof TaskPriority)[keyof typeof TaskPriority];
-
 export type Skill = {
   id: string;
   name: string;
@@ -42,14 +34,7 @@ export type Task = {
   title: string;
   description: string | null;
   status: TaskStatus;
-  priority: TaskPriority;
   assigneeId: string | null;
-  /**
-   * Calendar date the task is due, or null. The column is a DATE, so the wire
-   * value is an ISO timestamp at UTC midnight (`2026-09-12T00:00:00.000Z`);
-   * take the first ten characters to get the day.
-   */
-  dueDate: string | null;
   /**
    * The task this one is a subtask of, or null for a top-level task. The list
    * is flat — subtasks are ordinary rows — so the tree is built client-side
@@ -75,11 +60,8 @@ export type CreateTaskInput = {
   title: string;
   description?: string | null;
   status?: TaskStatus;
-  priority?: TaskPriority;
   assigneeId?: string | null;
   requiredSkillIds?: string[];
-  /** YYYY-MM-DD, or null to clear. */
-  dueDate?: string | null;
   /**
    * Subtasks to create under this task, each the same shape with its own
    * `subtasks` — nesting is unbounded. The whole tree is written in one

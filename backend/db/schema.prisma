@@ -18,12 +18,6 @@ enum TaskStatus {
   done
 }
 
-enum TaskPriority {
-  low
-  medium
-  high
-}
-
 /// A capability such as "Frontend" or "Backend". Shared, never owned by one
 /// developer: developers have skills, tasks require them.
 model Skill {
@@ -55,7 +49,6 @@ model Task {
   title          String       @db.VarChar(200)
   description    String?      @db.VarChar(2000)
   status         TaskStatus   @default(todo)
-  priority       TaskPriority @default(medium)
   /// Developer the task is assigned to, or null while unassigned. Assignment
   /// is only allowed when that developer has every skill in `requiredSkills` —
   /// enforced in tasks.service.ts, not by the database.
@@ -63,8 +56,6 @@ model Task {
   assignee       Developer?   @relation(fields: [assigneeId], references: [id], onDelete: SetNull)
   /// Skills a developer must have to be assigned this task.
   requiredSkills Skill[]
-  /// Calendar date the task is due, or null. A date, not a timestamp.
-  dueDate        DateTime?    @db.Date
   /// Parent task, or null for a top-level task. A subtask has every property a
   /// task has; deleting a parent removes its subtasks. Nesting is unbounded.
   parentId       String?      @db.Uuid

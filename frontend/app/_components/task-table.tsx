@@ -21,12 +21,7 @@ import { cn } from "@/lib/utils";
 import { DeveloperAvatar } from "./developer-avatar";
 import { SkillBadge } from "./skill-badge";
 import { AssigneeSelect, StatusSelect } from "./task-selects";
-import {
-  dateOnly,
-  flattenTree,
-  formatDate,
-  hasUnfinishedSubtasks,
-} from "./task-ui";
+import { flattenTree, hasUnfinishedSubtasks } from "./task-ui";
 
 type Props = {
   /** The rows to show, already filtered. Rendered as a tree via `parentId`. */
@@ -35,7 +30,6 @@ type Props = {
   allTasks: Task[];
   developers: Developer[];
   selectedId: string | null;
-  today: string;
   showDescriptions?: boolean;
   /** Tasks whose subtasks are shown; everything else is collapsed. */
   expanded: ReadonlySet<string>;
@@ -54,7 +48,6 @@ export function TaskTable({
   allTasks,
   developers,
   selectedId,
-  today,
   showDescriptions = true,
   expanded,
   onToggleExpanded,
@@ -77,7 +70,6 @@ export function TaskTable({
           <TableHead className={cn(headCell, "w-37.5 border-b")}>
             Status
           </TableHead>
-          <TableHead className={cn(headCell, "w-25 border-b")}>Due</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -87,8 +79,6 @@ export function TaskTable({
           const isExpanded = expanded.has(task.id);
           const assignee =
             developers.find((d) => d.id === task.assigneeId) ?? null;
-          const due = dateOnly(task.dueDate);
-          const overdue = !done && !!due && due < today;
           const selected = task.id === selectedId;
           return (
             <TableRow
@@ -177,15 +167,6 @@ export function TaskTable({
                   doneDisabled={blocked}
                   className="w-full"
                 />
-              </TableCell>
-              <TableCell
-                className={cn(
-                  bodyCell,
-                  "border-b text-[13px]",
-                  overdue ? "text-red-600" : "text-muted-foreground",
-                )}
-              >
-                {formatDate(task.dueDate)}
               </TableCell>
             </TableRow>
           );

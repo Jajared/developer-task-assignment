@@ -1,7 +1,6 @@
 "use client";
 
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -22,8 +21,6 @@ import { SkillBadge } from "./skill-badge";
 import { TaskCard } from "./task-card";
 import { AssigneeSelect, StatusSelect } from "./task-selects";
 import {
-  PRIORITY_LABEL,
-  PRIORITY_STYLE,
   childrenOf,
   formatDate,
   hasUnfinishedSubtasks,
@@ -130,17 +127,6 @@ export function TaskDetailPanel({
             doneDisabled={blocked}
             className="justify-self-start"
           />
-
-          <span className={fieldLabel}>Priority</span>
-          <Badge
-            variant="secondary"
-            className={cn("border-transparent", PRIORITY_STYLE[task.priority])}
-          >
-            {PRIORITY_LABEL[task.priority]}
-          </Badge>
-
-          <span className={fieldLabel}>Due date</span>
-          <span className="text-[13px]">{formatDate(task.dueDate)}</span>
 
           <span className={fieldLabel}>Created</span>
           <span className="text-[13px]">{formatDate(task.createdAt)}</span>

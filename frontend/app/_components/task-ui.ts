@@ -1,6 +1,5 @@
 /** Presentation helpers shared by the task list and its side panels. */
 import {
-  TaskPriority,
   TaskStatus,
   type Developer,
   type Skill,
@@ -11,11 +10,6 @@ export const STATUSES: TaskStatus[] = [
   TaskStatus.Todo,
   TaskStatus.InProgress,
   TaskStatus.Done,
-];
-export const PRIORITIES: TaskPriority[] = [
-  TaskPriority.Low,
-  TaskPriority.Medium,
-  TaskPriority.High,
 ];
 
 export const STATUS_LABEL: Record<TaskStatus, string> = {
@@ -30,17 +24,6 @@ export const STATUS_STYLE: Record<TaskStatus, string> = {
   [TaskStatus.Done]: "bg-emerald-100 text-emerald-800",
 };
 
-export const PRIORITY_LABEL: Record<TaskPriority, string> = {
-  [TaskPriority.Low]: "Low",
-  [TaskPriority.Medium]: "Medium",
-  [TaskPriority.High]: "High",
-};
-
-export const PRIORITY_STYLE: Record<TaskPriority, string> = {
-  [TaskPriority.Low]: "bg-zinc-100 text-zinc-700",
-  [TaskPriority.Medium]: "bg-amber-100 text-amber-800",
-  [TaskPriority.High]: "bg-red-100 text-red-800",
-};
 
 const SKILL_PALETTE = [
   "bg-violet-100 text-violet-800",
@@ -87,21 +70,12 @@ export function initials(name: string): string {
     .toUpperCase();
 }
 
-/** The YYYY-MM-DD part of an ISO timestamp, or null. */
-export function dateOnly(iso: string | null | undefined): string | null {
-  return iso ? iso.slice(0, 10) : null;
-}
-
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return "No date";
   return new Date(iso.slice(0, 10) + "T00:00:00").toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
   });
-}
-
-export function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
 }
 
 export function hasAllSkills(dev: Developer, required: Skill[]): boolean {
