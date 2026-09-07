@@ -1,7 +1,5 @@
 "use client";
 
-import { ChevronRightIcon, CornerDownRightIcon } from "lucide-react";
-
 import {
   Table,
   TableBody,
@@ -20,6 +18,7 @@ import { cn } from "@/lib/utils";
 
 import { DeveloperAvatar } from "./developer-avatar";
 import { SkillBadge } from "./skill-badge";
+import { TaskRowTitle } from "./task-row-title";
 import { AssigneeSelect, StatusSelect } from "./task-selects";
 import { flattenTree, hasUnfinishedSubtasks } from "./task-ui";
 
@@ -87,56 +86,16 @@ export function TaskTable({
               className="data-[state=selected]:bg-violet-50"
             >
               <TableCell className={cn(bodyCell, "border-b")}>
-                <div
-                  className="flex items-start gap-1"
-                  style={depth ? { paddingLeft: depth * 20 } : undefined}
-                >
-                  {childCount > 0 ? (
-                    <button
-                      type="button"
-                      aria-expanded={isExpanded}
-                      aria-label={`${isExpanded ? "Hide" : "Show"} ${childCount} subtask${childCount > 1 ? "s" : ""}`}
-                      onClick={() => onToggleExpanded(task.id)}
-                      className="-ml-1 flex h-5 shrink-0 items-center gap-0.5 rounded px-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
-                    >
-                      <ChevronRightIcon
-                        className={cn(
-                          "size-3.5 transition-transform",
-                          isExpanded && "rotate-90",
-                        )}
-                      />
-                      {childCount}
-                    </button>
-                  ) : depth > 0 ? (
-                    <CornerDownRightIcon
-                      aria-label="Subtask"
-                      className="mt-0.5 size-3.5 shrink-0 text-muted-foreground"
-                    />
-                  ) : null}
-                <button
-                  type="button"
-                  onClick={() => onOpen(task.id)}
-                  className="flex min-w-0 flex-1 text-left outline-none focus-visible:underline"
-                >
-                  <span className="min-w-0">
-                  <div
-                    className={cn(
-                      "text-sm font-medium",
-                      done
-                        ? "text-muted-foreground line-through"
-                        : "text-foreground",
-                    )}
-                  >
-                    {task.title}
-                  </div>
-                  {showDescriptions && task.description ? (
-                    <div className="mt-px max-w-[44ch] truncate text-xs text-muted-foreground">
-                      {task.description}
-                    </div>
-                  ) : null}
-                  </span>
-                </button>
-                </div>
+                <TaskRowTitle
+                  task={task}
+                  depth={depth}
+                  childCount={childCount}
+                  isExpanded={isExpanded}
+                  done={done}
+                  showDescriptions={showDescriptions}
+                  onToggleExpanded={onToggleExpanded}
+                  onOpen={onOpen}
+                />
               </TableCell>
               <TableCell className={cn(bodyCell, "border-b")}>
                 <div className="flex flex-wrap gap-1.5">
@@ -174,7 +133,7 @@ export function TaskTable({
         {tasks.length === 0 ? (
           <TableRow className="hover:bg-transparent">
             <TableCell
-              colSpan={5}
+              colSpan={4}
               className="py-10 text-center text-sm text-muted-foreground"
             >
               No tasks match this filter.

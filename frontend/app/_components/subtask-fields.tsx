@@ -170,7 +170,7 @@ function SubtaskCard({
           developers={developers}
           compact
         />
-        <div className="ml-1 border-l-2 border-dashed pl-3">
+        <div className="ml-0.5 border-l-2 border-dashed pl-2 sm:ml-1 sm:pl-3">
           <SubtaskList
             path={path}
             numbering={`${label}.`}

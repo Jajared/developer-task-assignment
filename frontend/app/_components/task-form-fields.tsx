@@ -119,7 +119,7 @@ export function TaskFormFields({
               : "e.g. Migrate auth service to OAuth 2.1"
           }
           aria-invalid={errors?.title ? true : undefined}
-          className="h-10 text-[15px] md:text-[15px]"
+          className="h-10 text-base md:text-[15px]"
           {...register(`${path}title` as "title", {
             validate: (v) => v.trim().length > 0 || "Give the task a name.",
           })}

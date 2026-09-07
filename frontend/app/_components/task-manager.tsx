@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 
 import { CreateTaskPanel, type NewTaskInput } from "./create-task-panel";
 import { TaskDetailPanel } from "./task-detail-panel";
+import { TaskCards } from "./task-cards";
 import { TaskTable } from "./task-table";
 import { STATUS_LABEL, ancestorsOf } from "./task-ui";
 import { useTaskMutations } from "@/app/_hooks/use-task-mutations";
@@ -134,23 +135,23 @@ export function TaskManager({ heading, showDescriptions = true }: Props) {
   return (
     <div className="flex h-dvh flex-1 overflow-hidden bg-background text-sm text-foreground">
       <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <header className="border-b px-8 pt-5 pb-4">
-          <div className="flex flex-wrap items-center justify-between gap-4">
+        <header className="border-b px-4 pt-4 pb-3 sm:px-8 sm:pt-5 sm:pb-4">
+          <div className="flex items-center justify-between gap-3">
             {heading}
             <Button
               size="lg"
               disabled={loading}
               onClick={() => setCreating(true)}
-              className="bg-blue-600 text-white hover:bg-blue-700"
+              className="shrink-0 bg-blue-600 text-white hover:bg-blue-700"
             >
               + Add task
             </Button>
           </div>
         </header>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b px-8 py-3">
+        <div className="flex flex-col gap-2 border-b px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-8">
           <div
-            className="flex flex-wrap gap-1.5"
+            className="scrollbar-none -mx-4 flex gap-1.5 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0"
             role="group"
             aria-label="Filter tasks"
           >
@@ -163,7 +164,7 @@ export function TaskManager({ heading, showDescriptions = true }: Props) {
                   aria-pressed={active}
                   onClick={() => url.setFilter(f.value)}
                   className={cn(
-                    "h-7.5 rounded-full border px-3 text-[13px] font-medium transition-colors",
+                    "h-8 shrink-0 rounded-full border px-3 text-[13px] font-medium transition-colors sm:h-7.5",
                     active
                       ? "border-foreground bg-foreground text-background"
                       : "border-border bg-background text-foreground hover:bg-muted",
@@ -179,7 +180,7 @@ export function TaskManager({ heading, showDescriptions = true }: Props) {
           </span>
         </div>
 
-        <div className="flex-1 overflow-auto px-8 pb-12">
+        <div className="flex-1 overflow-auto px-4 pb-8 sm:px-8 sm:pb-12">
           {loading ? (
             <div className="flex flex-col gap-3 pt-4" aria-busy>
               {Array.from({ length: 5 }, (_, i) => (
@@ -187,17 +188,36 @@ export function TaskManager({ heading, showDescriptions = true }: Props) {
               ))}
             </div>
           ) : (
-            <TaskTable
-              tasks={visible}
-              allTasks={tasks}
-              developers={developers}
-              selectedId={selected?.id ?? null}
-              showDescriptions={showDescriptions}
-              expanded={shown}
-              onToggleExpanded={toggleExpanded}
-              onOpen={openTask}
-              onUpdate={updateTask}
-            />
+            <>
+              {/* Both are rendered and CSS picks one, so the server-rendered
+                  first paint is right at any width with no layout flash. */}
+              <div className="md:hidden">
+                <TaskCards
+                  tasks={visible}
+                  allTasks={tasks}
+                  developers={developers}
+                  selectedId={selected?.id ?? null}
+                  showDescriptions={showDescriptions}
+                  expanded={shown}
+                  onToggleExpanded={toggleExpanded}
+                  onOpen={openTask}
+                  onUpdate={updateTask}
+                />
+              </div>
+              <div className="hidden md:block">
+                <TaskTable
+                  tasks={visible}
+                  allTasks={tasks}
+                  developers={developers}
+                  selectedId={selected?.id ?? null}
+                  showDescriptions={showDescriptions}
+                  expanded={shown}
+                  onToggleExpanded={toggleExpanded}
+                  onOpen={openTask}
+                  onUpdate={updateTask}
+                />
+              </div>
+            </>
           )}
         </div>
       </main>

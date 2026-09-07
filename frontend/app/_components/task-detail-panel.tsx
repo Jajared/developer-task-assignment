@@ -97,17 +97,17 @@ export function TaskDetailPanel({
         )
       }
     >
-      <div className="flex flex-col gap-7 px-6 py-6">
+      <div className="flex flex-col gap-6 px-4 py-5 sm:gap-7 sm:px-6 sm:py-6">
         <h2
           className={cn(
-            "text-xl font-bold",
+            "text-lg font-bold break-words sm:text-xl",
             done && "text-muted-foreground line-through",
           )}
         >
           {task.title}
         </h2>
 
-        <div className="grid grid-cols-[110px_1fr] items-center gap-x-3 gap-y-5">
+        <div className="grid grid-cols-[92px_1fr] items-center gap-x-3 gap-y-5 sm:grid-cols-[110px_1fr]">
           <span className={fieldLabel}>Assignee</span>
           <div className="flex items-center gap-2">
             <DeveloperAvatar developers={developers} developer={assignee} />

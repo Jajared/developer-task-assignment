@@ -78,7 +78,7 @@ export function CreateTaskPanel({
         <form
           onSubmit={submit}
           noValidate
-          className="flex flex-1 flex-col gap-7 px-6 pt-6 pb-8"
+          className="flex flex-1 flex-col gap-7 px-4 pt-5 pb-6 sm:px-6 sm:pt-6 sm:pb-8"
         >
           <TaskFormFields
             path=""
@@ -107,15 +107,21 @@ export function CreateTaskPanel({
             <SubtaskList path="" skills={skills} developers={developers} />
           </div>
 
-          <div className="mt-auto flex justify-end gap-2.5 border-t pt-4">
-            <Button type="button" variant="outline" size="lg" onClick={onClose}>
+          <div className="sticky bottom-0 mt-auto flex flex-col-reverse gap-2.5 border-t bg-popover pt-4 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              onClick={onClose}
+              className="w-full sm:w-auto"
+            >
               Cancel
             </Button>
             <Button
               type="submit"
               size="lg"
               disabled={pending}
-              className="bg-blue-600 text-white hover:bg-blue-700"
+              className="w-full bg-blue-600 text-white hover:bg-blue-700 sm:w-auto"
             >
               {pending ? "Creating…" : "Create task"}
             </Button>

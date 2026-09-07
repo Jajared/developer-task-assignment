@@ -36,12 +36,12 @@ export function SidePanel({
         className={cn(
           // The Sheet base sets `data-[side=right]:sm:max-w-sm`; the override must
           // carry the same variant or the base wins on specificity.
-          "w-full gap-0 overflow-y-auto p-0 sm:w-[34rem] data-[side=right]:sm:max-w-[34rem]",
+          "w-full gap-0 overflow-y-auto p-0 pb-[env(safe-area-inset-bottom)] data-[side=right]:w-full sm:w-[34rem] data-[side=right]:sm:max-w-[34rem]",
           className,
         )}
       >
         <SheetTitle className="sr-only">{title}</SheetTitle>
-        <div className="flex items-center justify-between gap-3 border-b px-5 py-3.5">
+        <div className="flex items-center justify-between gap-3 border-b px-4 py-3 sm:px-5 sm:py-3.5">
           {header}
           <Button
             variant="ghost"

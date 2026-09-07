@@ -94,3 +94,11 @@
     @apply font-sans;
   }
 }
+
+/* Hide the scrollbar on horizontally scrolling strips (mobile filter chips). */
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
