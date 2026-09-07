@@ -1,8 +1,8 @@
--- CreateEnum
-CREATE TYPE "TaskStatus" AS ENUM ('todo', 'in_progress', 'done');
+-- CreateSchema
+CREATE SCHEMA IF NOT EXISTS "public";
 
 -- CreateEnum
-CREATE TYPE "TaskPriority" AS ENUM ('low', 'medium', 'high');
+CREATE TYPE "TaskStatus" AS ENUM ('todo', 'done');
 
 -- CreateTable
 CREATE TABLE "Skill" (
@@ -30,8 +30,8 @@ CREATE TABLE "Task" (
     "title" VARCHAR(200) NOT NULL,
     "description" VARCHAR(2000),
     "status" "TaskStatus" NOT NULL DEFAULT 'todo',
-    "priority" "TaskPriority" NOT NULL DEFAULT 'medium',
     "assigneeId" UUID,
+    "parentId" UUID,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -70,6 +70,9 @@ CREATE INDEX "Task_createdAt_idx" ON "Task"("createdAt");
 CREATE INDEX "Task_assigneeId_idx" ON "Task"("assigneeId");
 
 -- CreateIndex
+CREATE INDEX "Task_parentId_idx" ON "Task"("parentId");
+
+-- CreateIndex
 CREATE INDEX "_SkillToTask_B_index" ON "_SkillToTask"("B");
 
 -- CreateIndex
@@ -77,6 +80,9 @@ CREATE INDEX "_DeveloperToSkill_B_index" ON "_DeveloperToSkill"("B");
 
 -- AddForeignKey
 ALTER TABLE "Task" ADD CONSTRAINT "Task_assigneeId_fkey" FOREIGN KEY ("assigneeId") REFERENCES "Developer"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Task" ADD CONSTRAINT "Task_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "Task"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "_SkillToTask" ADD CONSTRAINT "_SkillToTask_A_fkey" FOREIGN KEY ("A") REFERENCES "Skill"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -89,3 +95,4 @@ ALTER TABLE "_DeveloperToSkill" ADD CONSTRAINT "_DeveloperToSkill_A_fkey" FOREIG
 
 -- AddForeignKey
 ALTER TABLE "_DeveloperToSkill" ADD CONSTRAINT "_DeveloperToSkill_B_fkey" FOREIGN KEY ("B") REFERENCES "Skill"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
