@@ -13,8 +13,8 @@ import { getQueryClient } from "@/lib/query-client";
  * hooks pick up without a second fetch.
  *
  * `prefetchQuery` swallows failures on purpose: if the API is down the query
- * is simply absent from the cache, the client retries, and `TaskManager`
- * renders its error panel instead of the route crashing.
+ * is simply absent from the cache, the client retries, the query throws
+ * (`throwOnError`), and `app/error.tsx` renders with a retry button.
  *
  * `TaskManager` reads the URL through nuqs (`useSearchParams` underneath),
  * which Next requires to sit under a `Suspense` boundary for the build-time

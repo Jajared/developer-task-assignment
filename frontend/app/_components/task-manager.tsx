@@ -14,7 +14,7 @@ import { CreateTaskPanel, type NewTaskInput } from "./create-task-panel";
 import { TaskDetailPanel } from "./task-detail-panel";
 import { TaskTable } from "./task-table";
 import { STATUS_LABEL, ancestorsOf, todayIso } from "./task-ui";
-import { describeError, useTaskMutations } from "@/app/_hooks/use-task-mutations";
+import { useTaskMutations } from "@/app/_hooks/use-task-mutations";
 import {
   FILTER_VALUES,
   type Filter,
@@ -76,7 +76,6 @@ export function TaskManager({ heading, showDescriptions = true }: Props) {
   const tasks = useMemo(() => tasksQuery.data ?? [], [tasksQuery.data]);
   const developers = developersQuery.data ?? [];
   const skills = skillsQuery.data ?? [];
-  const error = tasksQuery.error ?? developersQuery.error ?? skillsQuery.error;
   const loading =
     tasksQuery.isPending || developersQuery.isPending || skillsQuery.isPending;
 
@@ -144,7 +143,7 @@ export function TaskManager({ heading, showDescriptions = true }: Props) {
             {heading}
             <Button
               size="lg"
-              disabled={!!error || loading}
+              disabled={loading}
               onClick={() => setCreating(true)}
               className="bg-blue-600 text-white hover:bg-blue-700"
             >
@@ -186,16 +185,7 @@ export function TaskManager({ heading, showDescriptions = true }: Props) {
         </div>
 
         <div className="flex-1 overflow-auto px-8 pb-12">
-          {error ? (
-            <div className="mt-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-              <p className="font-medium">Could not reach the API.</p>
-              <p className="mt-1 font-mono text-xs">{describeError(error)}</p>
-              <p className="mt-2">
-                Start both apps from the repo root with{" "}
-                <code className="font-mono">bun dev</code>.
-              </p>
-            </div>
-          ) : loading ? (
+          {loading ? (
             <div className="flex flex-col gap-3 pt-4" aria-busy>
               {Array.from({ length: 5 }, (_, i) => (
                 <Skeleton key={i} className="h-11 w-full" />

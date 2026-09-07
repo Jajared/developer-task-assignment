@@ -24,6 +24,7 @@ app/
                        #   TooltipProvider + Toaster
   page.tsx             # the task list — a server component that prefetches
                        #   into React Query and hydrates the client shell
+  error.tsx            # the route's error boundary; queries throwOnError into it
   providers.tsx        # NuqsAdapter + QueryClientProvider, wired in layout.tsx
   _components/         # components private to this route (see below)
     create-task-panel.tsx   # the create form: root fields + SubtaskList
@@ -207,8 +208,13 @@ Server state is React Query, following TanStack's App Router recipe:
   `getQueryClient()` and wraps the client shell in `HydrationBoundary`. The
   first paint is server-rendered with real data, and `useQuery` on the client
   reads the hydrated cache rather than fetching again (`staleTime` is 60s).
-  `prefetchQuery` swallows failures, so a down API means the client refetches,
-  fails, and `TaskManager` renders its error panel — the route never crashes.
+  `prefetchQuery` swallows failures, so a down API means the client refetches
+  and fails. Queries are `throwOnError` (`lib/query-client.ts`), so that
+  failure propagates to `app/error.tsx`, the route's error boundary. It is
+  deliberately generic — "Something went wrong" plus a "Try again" button
+  that calls `queryClient.resetQueries()` before Next's `reset()` — and
+  catches any render error, not only query failures. Components do not read
+  `query.error` themselves.
 - `app/_hooks/use-task-mutations.ts` owns the writes. `describeError()` also
   formats the two 409s: missing skills and unfinished subtasks. After creation a
   task changes in exactly two ways, mirrored by `TaskPatch` in `lib/types.ts`:
