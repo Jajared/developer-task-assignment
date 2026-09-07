@@ -1,0 +1,41 @@
+// Prisma schema for the task-assignment backend.
+// After editing: `bun run db:migrate` (dev) then `bun run db:generate`.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Values mirror the string unions in shared/types/task.ts exactly, so the
+// column values and the API contract stay in sync.
+enum TaskStatus {
+  todo
+  in_progress
+  done
+}
+
+enum TaskPriority {
+  low
+  medium
+  high
+}
+
+model Task {
+  id          String       @id @default(uuid()) @db.Uuid
+  title       String       @db.VarChar(200)
+  description String?      @db.VarChar(2000)
+  status      TaskStatus   @default(todo)
+  priority    TaskPriority @default(medium)
+  /// Developer the task is assigned to, or null while unassigned.
+  assignee    String?      @db.VarChar(100)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  // Task lists are read newest-first and filtered by assignee.
+  @@index([createdAt])
+  @@index([assignee])
+}

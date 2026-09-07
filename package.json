@@ -1,0 +1,26 @@
+{
+  "name": "task-assignment-app",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "db:logs": "docker compose logs -f postgres",
+    "dev": "bun --filter '*' dev",
+    "dev:backend": "bun --filter backend dev",
+    "dev:frontend": "bun --filter frontend dev",
+    "build": "bun --filter '*' build",
+    "start": "bun --filter '*' start",
+    "test": "bun --filter '*' test",
+    "typecheck": "bun --filter '*' typecheck",
+    "lint": "bun --filter '*' lint"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5"
+  }
+}
