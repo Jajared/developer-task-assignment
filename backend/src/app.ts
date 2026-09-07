@@ -9,15 +9,9 @@ import { developersRouter } from "@/services/developers/developers.route.ts";
 import { skillsRouter } from "@/services/skills/skills.route.ts";
 import { tasksRouter } from "@/services/tasks/tasks.route.ts";
 
-/**
- * Builds the Express app without binding a port: middleware, /health, the
- * service routers, the JSON 404 and the error handler. `index.ts` listens on
- * it; tests call `app.listen(0)` for a throwaway port.
- */
 export function createApp(): Express {
   const app = express();
 
-  app.disable("x-powered-by");
   app.use(requestLogger);
   app.use(cors({ origin: env.corsOrigins }));
   app.use(express.json());
@@ -36,9 +30,6 @@ export function createApp(): Express {
   });
 
   const onError: ErrorRequestHandler = (err, req, res, _next) => {
-    // A thrown 4xx is a decision, not a fault — send it as intended. This also
-    // covers the errors Express itself raises (body-parser's 400 on bad JSON).
-    // `expose` is false on 5xx, so those fall through and are treated as bugs.
     if (isHttpError(err) && err.expose) {
       req.log.debug(`Request refused: ${err.message}`, { status: err.status, details: err.details });
       res.status(err.status).json({ error: err.message, details: err.details });

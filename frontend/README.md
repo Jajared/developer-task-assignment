@@ -1,36 +1,75 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# frontend
 
-## Getting Started
+The task-assignment UI. Next.js 16 App Router, React 19, Tailwind 4,
+shadcn/ui, TanStack Query, react-hook-form and nuqs. Single page: a filterable
+task list with a detail side panel and a create panel.
 
-First, run the development server:
+## Running
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+The backend must be up (see the root README). Then, from the repo root:
+
+```sh
+bun dev:frontend        # next dev on :3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Or from this directory: `bun run dev`, `bun run build`, `bun run start`,
+`bun run lint`, `bun run typecheck`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Configuration
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+`frontend/.env.local` (copy from `.env.example`):
 
-## Learn More
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `NEXT_PUBLIC_API_URL` | `http://localhost:4000` | Backend base URL. Inlined at build time — changing it requires a rebuild. |
 
-To learn more about Next.js, take a look at the following resources:
+## What the page does
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **List** every task as a tree. Subtasks are collapsed under their parent
+  and expand on click. A table at `md` and above, stacked cards below.
+- **Filter** by status or "unassigned" via `?filter=`. The open task is
+  `?task=<id>`, so any view can be linked or reloaded.
+- **Change assignee or status inline.** Developers who lack a required skill
+  are listed but disabled (the create form hides them instead). "Done" is
+  withheld while a subtask is still open.
+  Updates are optimistic and roll back with a toast if the server refuses.
+- **Detail panel** shows the task, its parent, and its direct subtasks, each
+  a link that opens that task in the same panel.
+- **Create panel** builds a task with nested subtasks in one form. Required
+  skills are optional at every level; a task sent without them has them
+  inferred server-side, and the success toast names what was inferred. The
+  assignee picker is disabled until skills are chosen.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Structure
 
-## Deploy on Vercel
+```
+app/                App Router: layout, page, error boundary, providers
+  _components/      components private to the page
+  _hooks/           React Query mutations and nuqs URL state
+components/ui/      shadcn/ui components
+lib/                API client, query definitions, constants
+types/              the API contract, hand-maintained; import from `@/types`
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Types
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+`types/` is a hand-maintained copy of the backend's API contract. There is no
+shared package and no check that the two agree. When the Prisma schema
+changes, update the matching file here and verify against a real response.
+
+## shadcn/ui
+
+Components are copied into `components/ui/` and are editable. Add more from
+this directory:
+
+```sh
+bunx --bun shadcn@latest add <component>
+```
+
+The theme is light-only; `globals.css` has no dark tokens. `sonner.tsx` was
+edited to drop `next-themes`. See `CLAUDE.md` for the full list of post-init
+edits to preserve.
+
+## Tests
+
+None. `bun run lint` and `bun run typecheck` are the checks.

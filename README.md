@@ -1,136 +1,198 @@
 # task-assignment-app
 
-A Bun monorepo: an Express backend backed by Prisma/Postgres, and a Next.js
-frontend.
+A small engineering-backlog tool: tasks are assigned to developers based on
+the skills they hold, can be broken into nested subtasks, and can have their
+required skills inferred from their title by an LLM.
 
-```
-task-assignment-app/
-├── backend/                  # Express 5 API (Bun runtime), port 4000
-│   ├── db/
-│   │   ├── schema.prisma     # models, enums — source of truth for the DB
-│   │   ├── migrations/       # generated SQL, committed (created by db:migrate)
-│   │   └── seed.ts
-│   ├── prisma.config.ts      # points Prisma at db/ and supplies DATABASE_URL
-│   └── src/
-│       ├── app.ts            # app + /health; mount routers here
-│       ├── index.ts          # binds the port, closes the pool on shutdown
-│       ├── env.ts            # config from env vars
-│       ├── db/prisma.ts      # PrismaClient singleton
-│       ├── generated/prisma/ # generated client (gitignored)
-│       └── services/
-│           └── tasks/
-│               ├── tasks.controller.ts   # HTTP in/out
-│               ├── tasks.route.ts        # path → validator → controller
-│               ├── tasks.service.ts      # business logic + Prisma queries
-│               ├── tasks.validator.ts    # Zod request schemas + middleware
-│               ├── tasks.types.ts        # row + API shapes
-│               └── tasks.test.ts
-├── frontend/                 # Next.js 16 App Router + Tailwind 4, port 3000
-│   ├── app/
-│   ├── lib/
-│   │   └── api.ts            # typed client for the backend
-│   └── types/                # the API contract as the frontend sees it, per domain
-├── docker-compose.yml        # Postgres only; the apps run on the host
-└── package.json              # Bun workspaces + root scripts
-```
+Bun workspace monorepo with two apps:
+
+| App | Stack | Port |
+| --- | --- | --- |
+| `backend/` | Express 5 on Bun, Prisma 7, Postgres, Zod, Winston, Google Gemini | 4000 |
+| `frontend/` | Next.js 16 App Router, React 19, Tailwind 4, shadcn/ui, TanStack Query | 3000 |
+
+Postgres runs in Docker (`docker-compose.yml`); both apps run on the host.
+
+## Features
+
+- **Task list** with filters (all, to do, in progress, done, unassigned),
+  rendered as a tree of tasks and subtasks. Table on desktop, cards on mobile.
+- **Create tasks with nested subtasks** in one form, written in one transaction.
+- **Skill-gated assignment.** A task can only be assigned to a developer who
+  holds every skill it requires. The UI disables or hides ineligible
+  developers; the API refuses with a 409 naming the missing skills.
+- **Completion rule.** A task can only be marked done once all its direct
+  subtasks are done. Reopening a done subtask reopens its done ancestors.
+- **LLM skill inference.** A task created without required skills has them
+  inferred from its title by Gemini, constrained to the skills that exist.
+  Optional: without an API key, tasks simply keep no skills.
+- **Shareable views.** The active filter and open task live in the URL.
 
 ## Getting started
 
-Postgres runs in Docker; both apps run on the host.
+Prerequisites: [Bun](https://bun.sh) 1.3+, Docker.
 
 ```sh
-bun install
-cp backend/.env.example backend/.env
+bun install                          # also generates the Prisma client
+cp .env.example .env                 # Postgres credentials for docker compose
+cp backend/.env.example backend/.env # DATABASE_URL etc. — defaults match compose
 
-bun run db:up                      # starts Postgres on :5432
-bun --filter backend db:migrate    # creates the tables
-bun --filter backend db:seed       # optional sample rows
-bun dev                            # backend + frontend together
+bun run db:up                        # start Postgres on :5432
+bun --filter backend db:migrate      # apply migrations
+bun --filter backend db:seed         # skills, developers and sample tasks
+bun dev                              # backend on :4000, frontend on :3000
 ```
 
-The default `DATABASE_URL` in `.env.example` already matches the compose
-service, so no edit is needed. Two alternatives if you would rather not use
-Docker: point `DATABASE_URL` at your own Postgres, or run
-`bun --filter backend db:dev` for Prisma's built-in local server and copy the
-URL it prints into `backend/.env`.
+Open http://localhost:3000. The API answers at http://localhost:4000 (try
+`GET /health`).
 
-- Frontend — http://localhost:3000
-- Backend — http://localhost:4000 (`GET /health` to check it)
+To enable skill inference, set `GEMINI_API_KEY` in `backend/.env` (a free
+Google AI Studio key works). `GEMINI_MODEL` defaults to `gemini-2.5-flash`.
+
+Without Docker: point `DATABASE_URL` at any Postgres, or run
+`bun --filter backend db:dev` for Prisma's local server and paste the URL it
+prints into `backend/.env`.
 
 ## Scripts
 
-Root scripts fan out to both workspaces:
+Root scripts (run from the repo root):
 
 | Command | What it does |
 | --- | --- |
-| `bun run db:up` / `db:down` | Starts / stops the Postgres container |
-| `bun run db:logs` | Tails the Postgres logs |
-| `bun dev` | Runs backend and frontend together |
-| `bun dev:backend` / `bun dev:frontend` | Runs just one |
-| `bun run build` | Generates the client + bundles the backend, builds the frontend |
-| `bun run test` | Runs the backend test suite (needs a database; bare `bun test` skips `backend/.env`) |
-| `bun run typecheck` | Typechecks both apps |
+| `bun run db:up` / `db:down` / `db:logs` | Start / stop / tail the Postgres container |
+| `bun dev` | Run backend and frontend together |
+| `bun dev:backend` / `bun dev:frontend` | Run one app |
+| `bun run build` | Generate client + bundle backend; `next build` |
+| `bun run start` | Run the built apps |
+| `bun run test` | Backend test suite (needs a running, seeded database) |
+| `bun run typecheck` | `tsc --noEmit` in both apps |
 | `bun run lint` | ESLint on the frontend |
 
-Database scripts live in the backend workspace — `bun --filter backend <name>`:
+Database scripts live in the backend workspace: `bun --filter backend <script>`.
 
 | Script | What it does |
 | --- | --- |
-| `db:dev` | Prisma's own local Postgres, as an alternative to Docker |
-| `db:migrate` | Creates and applies a migration from schema changes |
-| `db:deploy` | Applies existing migrations (for deployed environments) |
-| `db:push` | Pushes the schema without writing a migration |
-| `db:generate` | Regenerates the Prisma client |
-| `db:seed` | Inserts sample rows (no-op if the table is non-empty) |
-| `db:studio` | Opens Prisma Studio |
-| `db:reset` | Drops, re-migrates, and re-seeds |
+| `db:migrate` | Create and apply a migration from schema changes; regenerates the client |
+| `db:deploy` | Apply existing migrations (deployed environments) |
+| `db:push` | Push the schema without writing a migration |
+| `db:generate` | Regenerate the Prisma client |
+| `db:seed` | Insert reference data and sample tasks; safe to re-run |
+| `db:studio` | Open Prisma Studio |
+| `db:reset` | Drop, re-migrate, re-seed |
+| `db:dev` | Prisma's built-in local Postgres, as an alternative to Docker |
 
-## Prisma layout
+Use `bun run test`, not bare `bun test`, from the root — the latter skips
+`backend/.env`.
 
-The schema lives in `backend/db/schema.prisma`, not the conventional `prisma/`
-directory. `backend/prisma.config.ts` is what makes that work — it declares the
-schema path, the migrations path, the seed command, and the datasource URL.
-Prisma 7 no longer reads `DATABASE_URL` from the schema's datasource block, so
-this file is required, not optional.
+## Environment
 
-The client is generated into `backend/src/generated/prisma` and is
-**gitignored** — `postinstall` regenerates it, so a fresh clone only needs
-`bun install`.
+Every `.env.example` is committed; the real files are gitignored.
 
-Prisma 7 talks to Postgres through a driver adapter (`@prisma/adapter-pg`)
-rather than a native query engine, so the connection string is passed to
-`PrismaClient` in `src/db/prisma.ts`.
+| File | Variables |
+| --- | --- |
+| `.env` | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_PORT`. Read only by `docker-compose.yml`, which refuses to start if any is missing. |
+| `backend/.env` | `DATABASE_URL` (required), `PORT`, `NODE_ENV`, `CORS_ORIGINS`, `LOG_LEVEL`, `GEMINI_API_KEY`, `GEMINI_MODEL` |
+| `frontend/.env.local` | `NEXT_PUBLIC_API_URL` (default `http://localhost:4000`), inlined at build time |
 
-## Types
-
-There is no shared package. The schema's enums are the source of truth:
-
-- The **backend** imports `TaskStatus` from the generated
-  client, so the Zod request schemas in `tasks.validator.ts` reject anything
-  the database column would. `tasks.types.ts` holds the row type and the API
-  shape (`Date` columns serialized to ISO strings).
-- The **frontend** declares the same contract by hand in `types/`, one file
-  per domain (`task.ts`, `developer.ts`, `skill.ts`, plus `api.ts` for shared
-  shapes). Nothing enforces that the two agree, so when you change the schema,
-  update the matching file in `frontend/types/`.
+The root `.env` and `DATABASE_URL` must describe the same database; nothing
+enforces that.
 
 ## API
 
+All responses are JSON. Errors are `{ error, details? }` at the relevant
+status: 404 missing row, 422 invalid body or unknown referenced row, 409 a
+business rule refused the request.
+
 | Method | Path | Notes |
 | --- | --- | --- |
-| `GET` | `/health` | Liveness + uptime, defined inline in `app.ts` |
-| `GET` | `/api/tasks` | List tasks, newest first |
-| `GET` | `/api/tasks/:id` | One task, 404 if missing |
-| `POST` | `/api/tasks` | Create; 422 on schema failure |
-| `PATCH` | `/api/tasks/:id` | Partial update |
-| `DELETE` | `/api/tasks/:id` | 204 on success |
+| `GET` | `/health` | `{ status: "ok", uptime }` |
+| `GET` | `/api/tasks` | Flat list, newest first. Subtasks are rows with `parentId` set. |
+| `GET` | `/api/tasks/:id` | One task with `assignee` and `requiredSkills` nested |
+| `POST` | `/api/tasks` | Create. Body may nest `subtasks` recursively; whole tree in one transaction. 201 with the root row. |
+| `PATCH` | `/api/tasks/:id` | Body `{ assigneeId }`; `null` unassigns. 409 `details.missingSkills` if under-skilled. |
+| `PATCH` | `/api/tasks/:id/status` | Body `{ status }`. 409 `details.unfinishedSubtasks` if subtasks are open. |
+| `GET` | `/api/developers` | Each with their `skills` |
+| `GET` | `/api/developers/:id` | |
+| `GET` | `/api/skills` | |
+| `GET` | `/api/skills/:id` | |
 
-## Adding a service
+Create body:
 
-1. Add the model to `backend/db/schema.prisma`, then
-   `bun --filter backend db:migrate`.
-2. `mkdir backend/src/services/<name>`
-3. Add `<name>.service.ts` (Prisma queries), `<name>.controller.ts` (HTTP),
-   `<name>.route.ts` (wiring), `<name>.validator.ts` (Zod schemas bound as
-   route middleware), and `<name>.types.ts`.
-4. Mount the router in `backend/src/app.ts`.
+```json
+{
+  "title": "Build the settings page",
+  "description": "optional",
+  "status": "todo",
+  "assigneeId": null,
+  "requiredSkillIds": [],
+  "subtasks": [{ "title": "Wire the form" }]
+}
+```
+
+`requiredSkillIds` omitted or empty means "infer from the title" (when a
+Gemini key is configured). Limits: subtasks nest at most 4 levels deep, at
+most 20 direct subtasks per task, at most 50 tasks per create. Title,
+description and required skills are fixed after creation; only assignee and
+status change.
+
+## Data model
+
+```
+Skill      id, name (unique)
+Developer  id, name, skills[]
+Task       id, title, description?, status (todo|in_progress|done),
+           assigneeId?, requiredSkills[], parentId?
+```
+
+Skills and developers are seeded reference data with no write routes. The
+assignment and completion rules are enforced in the backend service layer,
+not by database constraints.
+
+## Project structure
+
+```
+backend/
+  db/schema.prisma          # source of truth for tables and types
+  db/migrations/            # committed SQL
+  db/seed.ts
+  prisma.config.ts          # schema path, migrations path, DATABASE_URL
+  src/app.ts                # Express app factory
+  src/lib/                  # env, logging, validation, LLM client, constants
+  src/services/{tasks,developers,skills}/   # route / controller / service / validator
+frontend/
+  app/                      # App Router: page, layout, error boundary
+  app/_components/          # task list, detail panel, create form
+  app/_hooks/               # React Query mutations, nuqs URL state
+  components/ui/            # shadcn/ui
+  lib/                      # API client, query definitions, constants
+  types/                    # hand-maintained copy of the API contract
+docker-compose.yml          # Postgres only
+```
+
+### Types are duplicated on purpose
+
+There is no shared package. The Prisma schema is the source of truth; the
+backend derives its types from the generated client, and the frontend declares
+the same contract by hand in `frontend/types/`. Nothing checks that they agree,
+so a schema change must be mirrored there in the same commit. The same goes
+for the subtask caps in `backend/src/lib/constants.ts` and
+`frontend/lib/constants.ts`.
+
+## Testing
+
+```sh
+bun run test
+```
+
+Backend only, 4 suites, 38 tests. Two are pure (LLM schema handling, request
+validation caps). Two drive the app over HTTP against the real database and
+need `db:up`, `db:migrate` and `db:seed` first. The LLM is always stubbed;
+no test needs a Gemini key. The suites clean up every row they create.
+
+There are no frontend tests.
+
+## Further reading
+
+- [`backend/README.md`](backend/README.md) — API details, logging, inference
+- [`frontend/README.md`](frontend/README.md) — app structure, state management
+- `CLAUDE.md` files — conventions for AI-assisted development
