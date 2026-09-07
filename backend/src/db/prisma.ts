@@ -1,7 +1,7 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 
-import { PrismaClient } from "../generated/prisma/client.ts";
-import { env } from "../env.ts";
+import { PrismaClient } from "@/generated/prisma/client.ts";
+import { env } from "@/lib/env.ts";
 
 /**
  * One Prisma client for the process. Prisma 7 talks to Postgres through a

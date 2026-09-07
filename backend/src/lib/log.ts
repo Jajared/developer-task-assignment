@@ -1,4 +1,4 @@
-import { env } from "../env.ts";
+import { env } from "./env.ts";
 
 /** One line per request, so a handler's entry is visible in the server log. */
 export function log(message: string): void {

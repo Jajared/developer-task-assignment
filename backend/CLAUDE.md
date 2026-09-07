@@ -12,15 +12,14 @@ db/
   migrations/          # the initial migration lives here
 prisma.config.ts       # schema path, migrations path, seed cmd, DATABASE_URL
 src/
-  app.ts               # createApp(); /health is inline here; mount routers here
-  index.ts             # binds the port, $disconnect on SIGINT/SIGTERM
-  env.ts               # every process.env read; DATABASE_URL throws if missing
+  index.ts             # the Express app: middleware, /health, routers, error
+                       # handler, listen; $disconnect on SIGINT/SIGTERM
   db/prisma.ts         # PrismaClient singleton, cached on globalThis for --watch
   generated/prisma/    # generated client — GITIGNORED, never edit, never commit
+  lib/env.ts           # every process.env read; DATABASE_URL throws if missing
   lib/http-error.ts    # HttpError: an error that carries its HTTP status
   lib/validate.ts      # parseOrThrow(): ZodError → 422 HttpError
   lib/log.ts           # log() / logVerbose(); verbose is silent in production
-  test-utils.ts        # request() / send() helpers; boot on an ephemeral port
   services/tasks/
     tasks.route.ts        # path → controller
     tasks.controller.ts   # HTTP in/out only
@@ -32,10 +31,9 @@ src/
 
 Three services: `tasks/` (create, read, assign, set status — no delete), `developers/` and `skills/` (read-only —
 both are seeded reference data, and there are no write routes for them).
-`/health` is deliberately *not* a service — it's three lines in `app.ts`.
+`/health` is deliberately *not* a service — it's three lines in `index.ts`.
 
-There are no test files at the moment; `test-utils.ts` is kept for when they
-come back.
+There are no test files at the moment.
 
 ## Prisma 7 gotchas
 
@@ -64,7 +62,7 @@ These cost real time if you don't know them:
 ## Conventions
 
 - **One folder per service** under `src/services/`, files named
-  `<service>.<layer>.ts`. Mount its router in `app.ts`.
+  `<service>.<layer>.ts`. Mount its router in `index.ts`.
 - **Layers stay in their lane.** Controllers do HTTP; services own every Prisma
   call; validators own request shape. A controller should never build a `where`.
 - **Services export plain functions, named for the entity** — `listTasks`,
@@ -104,7 +102,7 @@ These cost real time if you don't know them:
 
   Declare the handlers, then export them in one block at the bottom.
 - **Throw `HttpError` to choose a status from anywhere** — validator, service,
-  controller. The error handler in `app.ts` sends `{ error, details }` at
+  controller. The error handler in `index.ts` sends `{ error, details }` at
   `err.status`; anything else is a bug and becomes a 500. Never throw it for
   one.
 - **Prisma rows are returned as-is.** No DTO, no mapping step. `res.json()`
@@ -132,15 +130,19 @@ These cost real time if you don't know them:
   const task = await taskService.findTaskById(id);
   res.status(200).json({ task });
   ```
-- **Relative imports carry the `.ts` extension** (`./tasks.service.ts`).
-- **Read env only in `env.ts`.**
+- **Imports carry the `.ts` extension.** Anything outside the current folder
+  uses the `@/` alias, which maps to `src/` (`@/lib/http-error.ts`,
+  `@/generated/prisma/enums.ts`); sibling files stay relative
+  (`./tasks.service.ts`). The alias is declared in `tsconfig.json` `paths` and
+  Bun honours it at runtime and in `bun build`, so there is no extra tooling.
+- **Read env only in `lib/env.ts`.**
 
 ## Status codes
 
 201 on create, 404 for a missing row, 422 for a Zod failure
 (not 400 — the body parsed, it just failed the schema) and for a body naming a
 row that doesn't exist. The JSON 404 fallback and the 500 handler are in
-`app.ts`.
+`index.ts`.
 
 **409 is the interesting one.** A task may only be assigned to a developer who
 holds every skill it requires. That rule lives in `assertAssignable()` in
@@ -200,8 +202,10 @@ timestamps, `requiredSkills` entries carry theirs.
 ## Testing
 
 **There are no tests right now** — they were removed to be written later, so
-`bun test` runs nothing. `test-utils.ts` is still here: it drives the real app
-over HTTP on an ephemeral port.
+`bun test` runs nothing. When they come back, drive the running server over
+HTTP (`bun dev`, then `fetch` against `PORT`) — `index.ts` binds the port on
+import, so it can't be required into a test without starting it. If that
+becomes a nuisance, split a `createApp()` back out of `index.ts`.
 
 When they come back: they **need a running database** and share one, so don't
 assert on absolute row counts, and read the seeded skills/developers from the

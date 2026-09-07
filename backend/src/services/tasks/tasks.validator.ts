@@ -1,7 +1,7 @@
 import { z } from "zod";
 
-import { TaskPriority, TaskStatus } from "../../generated/prisma/enums.ts";
-import { parseOrThrow } from "../../lib/validate.ts";
+import { TaskPriority, TaskStatus } from "@/generated/prisma/enums.ts";
+import { parseOrThrow } from "@/lib/validate.ts";
 
 /**
  * Request shapes for the task routes. The allowed values come from the Prisma

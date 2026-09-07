@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 
-import { log } from "../../lib/log.ts";
+import { log } from "@/lib/log.ts";
 import * as developerService from "./developers.service.ts";
 import * as developerValidator from "./developers.validator.ts";
 

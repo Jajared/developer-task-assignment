@@ -1,6 +1,6 @@
-import { TaskStatus } from "../src/generated/prisma/enums.ts";
+import { TaskStatus } from "@/generated/prisma/enums.ts";
 
-import { prisma } from "../src/db/prisma.ts";
+import { prisma } from "@/db/prisma.ts";
 
 /**
  * Seeds skills, developers and a few tasks for local development. Safe to

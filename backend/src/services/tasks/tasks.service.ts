@@ -1,6 +1,6 @@
-import { prisma } from "../../db/prisma.ts";
-import { HttpError } from "../../lib/http-error.ts";
-import type { TaskStatus } from "../../generated/prisma/enums.ts";
+import { prisma } from "@/db/prisma.ts";
+import { HttpError } from "@/lib/http-error.ts";
+import type { TaskStatus } from "@/generated/prisma/enums.ts";
 import type { TCreateTask, TUpdateTask, TUpdateTaskStatus } from "./tasks.validator.ts";
 
 /** No task with that id — the same 404 wherever a task is looked up. */

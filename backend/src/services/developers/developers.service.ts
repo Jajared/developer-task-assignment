@@ -1,5 +1,5 @@
-import { prisma } from "../../db/prisma.ts";
-import { HttpError } from "../../lib/http-error.ts";
+import { prisma } from "@/db/prisma.ts";
+import { HttpError } from "@/lib/http-error.ts";
 
 /**
  * Developers are read-only over the API — they're created by the seed. Tasks

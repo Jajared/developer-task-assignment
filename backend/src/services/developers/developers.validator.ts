@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { parseOrThrow } from "../../lib/validate.ts";
+import { parseOrThrow } from "@/lib/validate.ts";
 
 /** Route params for the developer routes. */
 const developerIdSchema = z.object({
