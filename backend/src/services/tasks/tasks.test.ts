@@ -105,7 +105,9 @@ describe("completion rule: a task is done only when every direct subtask is done
 
     const refused = await setStatus(root.id, "done");
     expect(refused.status).toBe(409);
-    expect(refused.body.error).toBe("All subtasks must be done before this task can be marked done");
+    expect(refused.body.error).toContain("All subtasks must be done before this task can be marked done: ");
+    expect(refused.body.error).toContain(a);
+    expect(refused.body.error).toContain(b);
     const open = (refused.body.details as { unfinishedSubtasks: { id: string; title: string; status: string }[] }).unfinishedSubtasks;
     expect(open.map((t) => t.title).sort()).toEqual([a, b].sort());
     expect(open.every((t) => typeof t.id === "string")).toBe(true);
@@ -218,7 +220,7 @@ describe("assignment rule: a task is held only by a developer with every require
       assigneeId: oneSkillDev.id,
     });
     expect(refused.status).toBe(409);
-    expect(refused.body.error).toBe("Developer lacks the skills this task requires");
+    expect(refused.body.error).toBe(`Developer lacks the skills this task requires: ${lackedSkill.name}`);
     expect(refused.body.details.missingSkills).toEqual([{ id: lackedSkill.id, name: lackedSkill.name }]);
   });
 

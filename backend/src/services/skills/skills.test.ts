@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, spyOn, test } from "b
 import type { Server } from "node:http";
 
 import { createApp } from "@/app.ts";
+import { MAX_SUBTASK_DEPTH } from "@/lib/constants.ts";
 import { prisma } from "@/db/prisma.ts";
 import * as llm from "@/lib/llm.ts";
 import { inferRequiredSkillIds } from "./skills.service.ts";
@@ -194,8 +195,22 @@ describe("inference on the create path", () => {
 
   test("a body that fails the cheap checks never reaches the model", async () => {
     stubModel([lackedSkill.name]);
-    const res = await post({ title: unique("bad assignee"), assigneeId: "00000000-0000-4000-8000-000000000000" });
+    // Nested one level too deep, and skill-less at every level, so inference
+    // is exactly what the depth check saves.
+    const nest = (depth: number): Record<string, unknown> =>
+      depth === 0 ? { title: unique("leaf") } : { title: unique("branch"), subtasks: [nest(depth - 1)] };
+    const res = await post(nest(MAX_SUBTASK_DEPTH + 1));
     expect(res.status).toBe(422);
     expect(generate).not.toHaveBeenCalled();
+  });
+
+  test("an unknown assignee is still a 422, though it costs an inference first", async () => {
+    stubModel([]);
+    const res = await post<{ error: string }>({
+      title: unique("bad assignee"),
+      assigneeId: "00000000-0000-4000-8000-000000000000",
+    });
+    expect(res.status).toBe(422);
+    expect(res.body.error).toBe("Assignee is not a known developer");
   });
 });

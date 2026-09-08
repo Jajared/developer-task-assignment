@@ -46,8 +46,11 @@ Single-page app. Route-private code lives in `app/_components` and
   `throwOnError`, lands in `error.tsx`. Components never read `query.error`.
 - **Mutations** in `use-task-mutations.ts`. A task changes in exactly two ways
   after creation, mirrored by `TaskPatch`: `{ assigneeId }` → `PATCH /:id`,
-  `{ status }` → `PATCH /:id/status`. Updates are optimistic against the list,
-  rolled back and toasted on error. `describeError()` formats the two 409s.
+  `{ status }` → `PATCH /:id/status`. Neither writes the cache directly: both
+  invalidate the task list on settle, so the UI only ever renders refetched
+  server rows and a row changes once the server answers, not on click. Errors
+  are toasted with the backend's own message, via `describeError()` in
+  `lib/api.ts` — 409s already name the missing skills or open subtasks.
 - **`types/` is hand-maintained.** It duplicates the backend contract derived
   from `backend/db/schema.prisma`; nothing checks agreement. One file per
   domain plus `api.ts`; import through the `@/types` barrel. Enum values are
