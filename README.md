@@ -154,7 +154,7 @@ Database scripts live in the backend workspace: `bun --filter backend <script>`.
 | `db:deploy` | Apply existing migrations (deployed environments) |
 | `db:push` | Push the schema without writing a migration |
 | `db:generate` | Regenerate the Prisma client |
-| `db:seed` | Insert reference data and sample tasks; safe to re-run |
+| `db:seed` | Insert the reference data — skills and developers; safe to re-run |
 | `db:studio` | Open Prisma Studio |
 | `db:reset` | Drop, re-migrate, re-seed |
 | `db:dev` | Prisma's built-in local Postgres, as an alternative to Docker |
@@ -314,10 +314,36 @@ curl -s localhost:4000/api/tasks -H 'content-type: application/json' \
 
 ## Tooling and dependencies
 
-Bun as runtime, package manager and test runner for both workspaces;
-strict TypeScript in both; ESLint (`eslint-config-next`) on the frontend.
+Shared across both workspaces: Bun as runtime, package manager and test
+runner; strict TypeScript; ESLint (`eslint-config-next`) on the frontend.
+Nothing else is shared — the two apps have independent dependency trees and
+communicate only over HTTP.
 
-Why each runtime dependency was chosen is documented per package, in
+Backend:
+
+| Package | Why |
+| --- | --- |
+| `express` 5 | Minimal, well-known HTTP framework; v5 forwards rejected promises to the error handler, so async controllers need no wrapper. |
+| `@prisma/client`, `prisma`, `@prisma/adapter-pg` | Schema-first ORM: one `schema.prisma` yields the migrations, a typed client, and the types the services return. The pg adapter is how Prisma 7 connects to Postgres. |
+| `zod` | Request validation with inferred TypeScript types and readable field errors. Also converts to the JSON Schema sent to Gemini, so the model is constrained by the same definition its reply is checked against. |
+| `@google/genai` | Google's official Gemini SDK, with the structured-output support the inference step depends on. Gemini was chosen for its free tier, as the brief suggests. |
+| `http-errors` | Errors that carry their HTTP status, so services throw and a single handler responds. |
+| `helmet` | Standard security headers; hides `X-Powered-By`. |
+| `cors` | Allows only the configured frontend origin(s). |
+| `winston` | Levelled logging with a per-request child logger. |
+
+Frontend:
+
+| Package | Why |
+| --- | --- |
+| `next` 16, `react` 19 | React framework with server components: the first paint is server-rendered with real data, the rest behaves as a normal SPA. |
+| `@tanstack/react-query` | Server-state cache hydrated from the server prefetch; optimistic updates with rollback for the two mutations. |
+| `react-hook-form` | Uncontrolled form state; `useFieldArray` makes the recursive subtask form cheap to render at any depth. |
+| `nuqs` | Type-safe URL search-param state, so the active filter and the open task are shareable links. |
+| `tailwindcss` 4, `radix-ui`, shadcn/ui (`class-variance-authority`, `cmdk`, `cn`, `lucide-react`, `tw-animate-css`) | Utility CSS plus accessible headless primitives; shadcn components are copied into `components/ui/` and owned by the repo. |
+| `sonner` | Toasts for mutation results and errors. |
+
+The same tables, with the per-package detail in context, are in
 [`backend/README.md`](backend/README.md#dependencies-and-why) and
 [`frontend/README.md`](frontend/README.md#dependencies-and-why).
 
