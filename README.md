@@ -41,7 +41,7 @@ There are two ways to run the app. Pick one; the Docker path needs the least.
 | --- | --- | --- |
 | Run the whole app in Docker (recommended for evaluation) | [Docker](https://docs.docker.com/get-docker/) with Compose v2 (Docker Desktop 4.x, or Docker Engine 20.10+ with the `docker compose` plugin) | Nothing else. Bun, Node and npm are not needed on the host; the images bring their own runtimes. |
 | Develop on the host | [Bun](https://bun.sh) 1.3+ and Docker (for Postgres only) | Bun is the runtime, package manager and test runner for both workspaces. |
-| Enable LLM skill inference (optional) | A Google AI Studio API key in `GEMINI_API_KEY` | Free tier works. Without a key, tasks created with no skills simply keep none. |
+| Enable LLM skill inference | A Gemini API key in `GEMINI_API_KEY` — supplied in the submission email, or a free [Google AI Studio](https://aistudio.google.com/apikey) key | The app runs without one, but tasks created with no skills then keep none instead of having them inferred. Set it to evaluate Part 5. |
 
 Installing Bun. If you already have Node.js and npm, the quickest way is:
 
@@ -65,14 +65,32 @@ Docker path, which needs neither.
 
 Needs only Docker (see Prerequisites); Bun is not required on the host.
 
+**1. Create the env file.**
+
 ```sh
-cp .env.example .env                 # Postgres credentials (+ optional GEMINI_API_KEY)
+cp .env.example .env
+```
+
+**2. Set `GEMINI_API_KEY` in that `.env`** to the key supplied in the
+submission email (or any free [Google AI Studio](https://aistudio.google.com/apikey)
+key). This is what enables LLM skill inference — a task created without
+required skills has them inferred from its title.
+
+The app runs without a key, but that feature is then off: a task created with
+no skills simply keeps none, and the backend logs
+`GEMINI_API_KEY is not set — LLM features are disabled` at startup. Set the
+key before evaluating anything skill-inference related.
+
+**3. Start everything.**
+
+```sh
 docker compose up --build -d         # postgres → migrate + seed → backend → frontend
 ```
 
 Open http://localhost:3000. The `migrate` service applies the migrations and
 seeds the developers and skills before the backend starts, so the app is
 usable as soon as `up` returns. It re-runs on every `up` and is idempotent.
+Changing `.env` afterwards takes effect on the next `docker compose up -d`.
 
 > **Note on convention.** Running migrations from `docker compose up` is a
 > deliberate deviation from the usual CI practice, where migrations are a
@@ -121,8 +139,10 @@ bun dev                              # backend on :4000, frontend on :3000
 Open http://localhost:3000. The API answers at http://localhost:4000 (try
 `GET /health`).
 
-To enable skill inference, set `GEMINI_API_KEY` in `backend/.env` (a free
-Google AI Studio key works). `GEMINI_MODEL` defaults to `gemini-3.5-flash-lite`.
+To enable skill inference, set `GEMINI_API_KEY` in `backend/.env` — the key
+supplied in the submission email, or a free Google AI Studio one. On this path
+the key goes in `backend/.env`, not the root `.env`, which only configures
+compose. `GEMINI_MODEL` defaults to `gemini-3.5-flash-lite`.
 
 Without Docker: point `DATABASE_URL` at any Postgres, or run
 `bun --filter backend db:dev` for Prisma's local server and paste the URL it
@@ -309,7 +329,10 @@ every `done` ancestor to `todo` in the same transaction.
 ```sh
 curl -s localhost:4000/api/tasks -H 'content-type: application/json' \
   -d '{"title":"As a visitor, I want to see a responsive homepage"}'
-# 201 {"task":{..., "requiredSkills":[{"name":"Frontend", ...}]}}
+# with GEMINI_API_KEY set:
+#   201 {"task":{..., "requiredSkills":[{"name":"Frontend", ...}]}}
+# without a key (inference disabled, the create still succeeds):
+#   201 {"task":{..., "requiredSkills":[]}}
 ```
 
 ## Tooling and dependencies
