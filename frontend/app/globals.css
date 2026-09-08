@@ -31,6 +31,9 @@
   --color-muted: var(--muted);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-secondary: var(--secondary);
+  --color-primary-subtle-border: var(--primary-subtle-border);
+  --color-primary-subtle-foreground: var(--primary-subtle-foreground);
+  --color-primary-subtle: var(--primary-subtle);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
   --color-popover-foreground: var(--popover-foreground);
@@ -58,6 +61,11 @@
   /* Brand purple #5C068C */
   --primary: oklch(0.3758 0.1881 307.07);
   --primary-foreground: oklch(0.985 0 0);
+  /* Tint of the brand purple, for surfaces that should read as branded
+     without the weight of a solid --primary fill (e.g. toasts). */
+  --primary-subtle: oklch(0.968 0.021 307.07);
+  --primary-subtle-foreground: oklch(0.32 0.155 307.07);
+  --primary-subtle-border: oklch(0.895 0.055 307.07);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);

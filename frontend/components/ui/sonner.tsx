@@ -29,15 +29,18 @@ const Toaster = ({ ...props }: ToasterProps) => {
       }}
       style={
         {
-          "--normal-bg": "var(--popover)",
-          "--normal-text": "var(--popover-foreground)",
-          "--normal-border": "var(--border)",
+          "--normal-bg": "var(--primary-subtle)",
+          "--normal-text": "var(--primary-subtle-foreground)",
+          "--normal-border": "var(--primary-subtle-border)",
           "--border-radius": "var(--radius)",
         } as React.CSSProperties
       }
       toastOptions={{
         classNames: {
           toast: "cn-toast",
+          // sonner hardcodes a grey description colour (and a lighter one
+          // under its "dark" theme); override both so it reads as the brand.
+          description: "text-primary-subtle-foreground/75!",
         },
       }}
       {...props}

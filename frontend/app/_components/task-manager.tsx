@@ -117,23 +117,10 @@ export function TaskManager({ showDescriptions = true }: Props) {
     create.mutate(toCreateInput(input), {
       onSuccess: ({ task }) => {
         setCreating(false);
-        url.showNewTask(task.id);
-        if (subtasks) setExpanded((prev) => new Set([...prev, task.id]));
-        // Skills the server inferred because none were picked for the root.
-        const inferred =
-          input.skills.length === 0 && task.requiredSkills.length > 0
-            ? ` Skills inferred: ${task.requiredSkills.map((s) => s.name).join(", ")}.`
-            : "";
         toast.success(
           subtasks
             ? `"${task.title}" created with ${subtasks} subtask${subtasks > 1 ? "s" : ""}.`
             : `"${task.title}" created.`,
-          {
-            description:
-              (task.assignee
-                ? `Assigned to ${task.assignee.name}.`
-                : "Assign a developer when ready.") + inferred,
-          },
         );
       },
     });

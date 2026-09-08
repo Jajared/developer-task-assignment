@@ -45,7 +45,5 @@ export function useTaskSearchParams() {
     setFilter: (filter: Filter) => setParams({ filter }),
     openTask: (id: string) => setParams({ task: id }),
     closeTask: () => setParams({ task: null }),
-    /** After a create: reset the filter so the new task is visible, and open it. */
-    showNewTask: (id: string) => setParams({ filter: "all", task: id }),
   };
 }
